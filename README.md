@@ -325,6 +325,51 @@ encoded_token.verify_signature!(algorithm: 'HS256', key: "secret")
 encoded_token.payload # => {"pay"=>"load"}
 ```
 
+## JSON Web Signature JSON Serialization (JWS JSON)
+
+The JWS General and Flattened JSON Serializations defined in [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) allow the same payload to carry several signatures. They are available through the independent `JWT::JWS` entry point.
+
+Each signature is produced by a `JWT::JWS::Signer`. The algorithm is always placed in the protected header and protected and unprotected header parameters must not share names.
+
+```ruby
+payload = { sub: 'multi-signed' }
+
+signers = [
+  JWT::JWS::Signer.new(algorithm: 'HS256', key: 'first-secret',  protected_header: { kid: 'one' }),
+  JWT::JWS::Signer.new(algorithm: 'HS256', key: 'second-secret', header:          { kid: 'two' })
+]
+
+general   = JWT::JWS.general_serialize(payload, signers)   # {"payload"=>"...", "signatures"=>[...]}
+flattened = JWT::JWS.flattened_serialize(payload, signers.first) # {"payload"=>"...", "protected"=>"...", "signature"=>"..."}
+```
+
+Decoding always verifies every signature independently and returns one result per signature. The algorithm whitelist must be provided by the caller.
+
+```ruby
+result = JWT::JWS.decode(general, algorithms: ['HS256'], key: ['first-secret', 'second-secret'])
+
+result.signature_results.map(&:valid?)  # => [true, true]
+result.verified?                       # => true
+result.verified_payload                # => {"sub"=>"multi-signed"}
+```
+
+The default `:all` policy requires every signature to be valid and to come from a distinct key, so a valid signature can never mask an invalid one and signing twice with the same key does not create two independent signers. A threshold of distinct valid signers is supported as well.
+
+```ruby
+JWT::JWS.decode(general, algorithms: ['HS256'], key: keys, policy: 2) # at least two distinct keys
+JWT::JWS.decode(general, algorithms: ['HS256'], key: keys, policy: { minimum: 1 })
+```
+
+Keys can also be resolved per signature with a block. Critical header parameters that the caller does not understand are never ignored; they have to be declared with `critical_headers`.
+
+```ruby
+result = JWT::JWS.decode(general, algorithms: ['HS256'], critical_headers: ['http://example.com/feature']) do |headers, payload|
+  keys_by_kid.fetch(headers['kid'])
+end
+```
+
+When the policy is not satisfied `verified?` is false and `verified_payload` raises `JWT::VerificationError`; the claims are never returned as verified.
+
 ## Claims
 
 JSON Web Token defines some reserved claim names and defines how they should be

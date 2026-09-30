@@ -6,7 +6,7 @@
 
 **Features:**
 
-- Your contribution here
+- Add the `JWT::JWS` entry point for the JWS General and Flattened JSON Serializations, including per-signature verification, caller provided algorithm whitelists, critical header handling, and `:all`/threshold signer policies
 
 **Fixes and enhancements:**
 
