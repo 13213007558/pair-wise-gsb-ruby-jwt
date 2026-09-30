@@ -758,6 +758,53 @@ jwk_hash = jwk.export
 thumbprint_as_the_kid = jwk_hash[:kid]
 ```
 
+## Selective Disclosure for JWTs (SD-JWT)
+
+The `JWT::SDJwt` module implements the compact serialization from [RFC 9901](https://www.rfc-editor.org/rfc/rfc9901).
+Disclosure digests are computed from the exact Base64url-encoded disclosure string.
+Verification rejects duplicate and unreferenced disclosures and disclosures that would overwrite an existing claim.
+Undisclosed claims are omitted; they are not represented as `null`.
+
+```ruby
+payload = {
+  'iss' => 'https://issuer.example',
+  'given_name' => 'Jane',
+  'address' => { 'country' => 'US', 'locality' => 'Anytown' },
+  'degrees' => [{ 'type' => 'Bachelor' }, 'Master']
+}
+
+sd_jwt = JWT::SDJwt.issue(
+  payload: payload,
+  signer: { key: issuer_private_key, algorithm: 'RS256' },
+  disclosable_paths: %w[given_name address.country address.locality degrees.0.type degrees.1],
+  decoy_digests: 2,
+  holder_public_key: holder_public_key
+)
+
+presentation = JWT::SDJwt.disclose(
+  sd_jwt,
+  paths: %w[given_name address.country degrees.1],
+  key_binding: {
+    holder_key: holder_private_key,
+    audience: 'https://verifier.example',
+    nonce: server_nonce,
+    iat: Time.now.to_i
+  }
+)
+
+result = JWT::SDJwt.verify(
+  presentation,
+  issuer_key: issuer_public_key,
+  algorithm: 'RS256',
+  current_time: Time.now.to_i,
+  audience: 'https://verifier.example',
+  nonce: server_nonce,
+  holder_key: holder_public_key
+)
+
+result.payload # Only selected claims are present
+```
+
 ## Development and testing
 
 The tests are written with rspec. [Appraisal](https://github.com/thoughtbot/appraisal) is used to ensure compatibility with 3rd party dependencies providing cryptographic features.
