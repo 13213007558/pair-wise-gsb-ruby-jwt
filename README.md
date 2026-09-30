@@ -325,6 +325,78 @@ encoded_token.verify_signature!(algorithm: 'HS256', key: "secret")
 encoded_token.payload # => {"pay"=>"load"}
 ```
 
+## JWS JSON Serialization
+
+In addition to the compact serialization, the gem supports the JWS General
+and Flattened JSON Serializations defined in
+[RFC 7515](https://www.rfc-editor.org/rfc/rfc7515#section-7). These formats
+allow the same payload to carry several signatures produced by independent
+keys. Use the dedicated `JWT::JWS` entry points; `JWT.encode` and `JWT.decode`
+keep using the compact format.
+
+### Signing
+
+`JWT::JWS.sign` produces the General syntax (multiple signatures) and
+`JWT::JWS.sign_flattened` produces the Flattened syntax (one signature). Each
+signer is a Hash (or a `JWT::JWS::Signature`) with `algorithm`, `key` and an
+optional `kid`, `protected_header` and `header`.
+
+```ruby
+jws = JWT::JWS.sign(
+  { sub: '42' },
+  [
+    { algorithm: 'HS256', key: 'secret-a', kid: 'a' },
+    { algorithm: 'HS256', key: 'secret-b', kid: 'b' }
+  ]
+)
+# { "payload" => "...", "signatures" => [{ "protected" => "...", "signature" => "..." }, ...] }
+
+flattened = JWT::JWS.sign_flattened(
+  { sub: '42' },
+  { algorithm: 'HS256', key: 'secret-a', kid: 'a' }
+)
+```
+
+The same parameter name must not appear in both a signature's protected and
+unprotected header.
+
+### Verifying
+
+`JWT::JWS.verify` verifies every signature independently and reports the result
+of each one through `result.signatures`. The algorithm whitelist is always
+provided by the caller, unknown `crit` parameters are never ignored, and the
+verified claims are only exposed when the acceptance policy is met.
+
+```ruby
+result = JWT::JWS.verify(
+  jws,
+  algorithms: ['HS256'],
+  signers: [
+    { algorithm: 'HS256', key: 'secret-a', kid: 'a' },
+    { algorithm: 'HS256', key: 'secret-b', kid: 'b' }
+  ],
+  policy: :all # every provided signer has to verify
+)
+
+result.verified?            # => true
+result.signatures           # => one JWT::JWS::SignatureResult per signature
+result.claims               # => { "sub" => "42" }
+result.unverified_payload   # available even when the policy is not met
+```
+
+The keys can be given as `keys:` (fixed keys tried for every signature),
+`signers:` (matched by `kid`) or through a `keyfinder:` block. The `policy:`
+accepts `:all` (the default), `:any`, a minimum number of independent signers
+(an Integer) or `{ threshold: n }`. Signing twice with the same key never
+counts as two independent signers.
+
+Use `JWT::JWS.decode` when a failure should raise instead of returning a
+result object:
+
+```ruby
+payload, header = JWT::JWS.decode(jws, algorithms: ['HS256'], keys: %w[secret-a secret-b], policy: 2)
+```
+
 ## Claims
 
 JSON Web Token defines some reserved claim names and defines how they should be
