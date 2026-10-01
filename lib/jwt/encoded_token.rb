@@ -108,11 +108,14 @@ module JWT
     #
     # @param signature [Hash] the parameters for signature verification (see {#verify_signature!}).
     # @param claims [Array<Symbol>, Hash] the claims to verify (see {#verify_claims!}).
+    # @param profile [JWT::ValidationProfile, #verify!] an optional server selected
+    #   validation profile. When given it fully replaces the +claims+ rules and is
+    #   applied only after the signature is verified.
     # @return [nil]
     # @raise [JWT::Error] if the signature or claim verification fails.
-    def verify!(signature:, claims: nil)
+    def verify!(signature:, claims: nil, profile: nil)
       verify_signature!(**signature)
-      claims.is_a?(Array) ? verify_claims!(*claims) : verify_claims!(claims)
+      profile ? verify_profile!(profile) : (claims.is_a?(Array) ? verify_claims!(*claims) : verify_claims!(claims))
       nil
     end
 
@@ -121,10 +124,16 @@ module JWT
 
     # @param signature [Hash] the parameters for signature verification (see {#verify_signature!}).
     # @param claims [Array<Symbol>, Hash] the claims to verify (see {#verify_claims!}).
-    # @return [Boolean] true if the signature and claims are valid, false otherwise.
-    def valid?(signature:, claims: nil)
+    # @param profile [JWT::ValidationProfile, #verify!] an optional server selected
+    #   validation profile (see {#verify!}).
+    # @return [Boolean] true if the signature and claim rules are valid, false otherwise.
+    def valid?(signature:, claims: nil, profile: nil)
       valid_signature?(**signature) &&
-        (claims.is_a?(Array) ? valid_claims?(*claims) : valid_claims?(claims))
+        if profile
+          valid_profile?(profile)
+        else
+          claims.is_a?(Array) ? valid_claims?(*claims) : valid_claims?(claims)
+        end
     end
 
     # Verifies the signature of the JWT token.
@@ -186,6 +195,33 @@ module JWT
     # @return [Boolean] whether the claims are valid.
     def valid_claims?(*options)
       claim_errors(*claims_options(options)).empty?.tap { |verified| @claims_verified = verified }
+    end
+
+    # Verifies the token against a server selected validation profile.
+    # The signature must have been verified first (see {#verify_signature!}).
+    #
+    # @param profile [JWT::ValidationProfile, #verify!] the profile to apply.
+    # @return [nil]
+    # @raise [JWT::ProfileViolation] if the token violates the profile.
+    # @raise [ArgumentError] if the profile does not respond to +#verify!+.
+    def verify_profile!(profile)
+      raise ArgumentError, 'profile must respond to #verify!' unless profile.respond_to?(:verify!)
+
+      profile.verify!(ClaimsContext.new(self)).tap { @claims_verified = true }
+    rescue StandardError
+      @claims_verified = false
+      raise
+    end
+
+    # Checks the token against a server selected validation profile.
+    #
+    # @param profile [JWT::ValidationProfile, #verify!] the profile to apply.
+    # @return [Boolean] whether the token satisfies every profile rule.
+    def valid_profile?(profile)
+      verify_profile!(profile)
+      true
+    rescue JWT::ClaimValidationError
+      false
     end
 
     alias to_s jwt

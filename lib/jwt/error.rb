@@ -73,6 +73,15 @@ module JWT
   # The MissingRequiredClaim class is raised when a required claim is missing from the JWT.
   class MissingRequiredClaim < ClaimValidationError; end
 
+  # The InvalidTokenType class is raised when the JWT 'typ' header does not
+  # match the type required by the validation profile in use.
+  class InvalidTokenType < ClaimValidationError; end
+
+  # The ProfileViolation class is raised when a token violates one or more
+  # rules of the validation profile it was checked against. The message only
+  # names the violated rules and never exposes the verification key.
+  class ProfileViolation < ClaimValidationError; end
+
   # The JWKError class is raised when there is an error with the JSON Web Key (JWK).
   class JWKError < DecodeError; end
 

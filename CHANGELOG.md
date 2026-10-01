@@ -6,7 +6,7 @@
 
 **Features:**
 
-- Your contribution here
+- Add `JWT::ValidationProfile`, an immutable reusable bundle of validation rules (`typ`, issuer, audience, required and forbidden claims, maximum lifetime, clock, leeway and custom rules) that the server selects for a token. Pass `profile:` to `JWT.decode` or `JWT::EncodedToken#verify!`; the signature is verified first and a violation raises `JWT::ProfileViolation` naming the broken rules without exposing the key
 
 **Fixes and enhancements:**
 

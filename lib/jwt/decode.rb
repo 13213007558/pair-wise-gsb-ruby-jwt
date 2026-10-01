@@ -31,6 +31,11 @@ module JWT
 
     # Decodes the JWT token and verifies its segments if verification is enabled.
     #
+    # Signature verification always happens before any claim or profile rules
+    # are applied. When a +:profile+ is given (see JWT::ValidationProfile) the
+    # server selected profile fully governs claim and header rules; the token
+    # cannot widen or disable those rules through the other decode options.
+    #
     # @return [Array<Hash>] an array containing the decoded payload and header.
     def decode_segments
       validate_segment_count!
@@ -38,7 +43,7 @@ module JWT
         verify_algo
         set_key
         verify_signature
-        Claims::DecodeVerifier.verify!(token.unverified_payload, @options)
+        verify_claims
       end
 
       [token.unverified_payload, token.header]
@@ -47,6 +52,19 @@ module JWT
     private
 
     attr_reader :token
+
+    def verify_claims
+      profile = @options[:profile]
+      if profile
+        raise ArgumentError, ':profile must respond to #verify!' unless profile.respond_to?(:verify!)
+
+        # The signature is already trusted at this point, so the unverified
+        # payload is safe to hand to the server selected profile.
+        profile.verify!(token.unverified_payload, token.header)
+      else
+        Claims::DecodeVerifier.verify!(token.unverified_payload, @options)
+      end
+    end
 
     def verify_signature
       return if none_algorithm?

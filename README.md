@@ -593,6 +593,99 @@ JWT::Claims.verify_payload!({"exp" => Time.now.to_i - 10}, exp: { leeway: 11})
 JWT::Claims.verify_payload!({"exp" => Time.now.to_i + 10, "sub" => "subject"}, :exp, sub: "subject")
 ```
 
+### Validation profiles
+
+Access tokens and password reset tokens are commonly signed with the same key,
+so a valid signature alone cannot tell what a token is allowed to do. A
+`JWT::ValidationProfile` binds all rules for one kind of token into a single,
+reusable and immutable configuration:
+
+- the required token type (`typ` header),
+- the expected issuer (`iss`) and audience (`aud`),
+- claims that must be present (`required_claims`) and claims that must never be
+  present (`forbidden_claims`),
+- a maximum token lifetime (`max_lifetime`, enforced as a cross-claim
+  constraint between `iat` and `exp`),
+- the `leeway` and `clock` used by the time based rules, and
+- any number of custom pure validation rules.
+
+**The server chooses the profile; the token never can.** Pass `profile:` to
+`JWT.decode` and the profile fully governs claim and header rules. Signature
+verification always runs first, and only afterwards are the profile rules
+applied. Tokens cannot widen or disable profile rules through decode options.
+A failure raises `JWT::ProfileViolation` whose message names every violated
+rule; the verification key is never part of it.
+
+```ruby
+access_profile = JWT::ValidationProfile.new(
+  name: 'access',
+  typ: 'at+JWT',
+  issuer: 'https://id.example.com',
+  audience: 'api.example.com',
+  required_claims: %w[sub iat exp],
+  forbidden_claims: %w[pwr],
+  max_lifetime: 900, # 15 minutes
+  leeway: 5
+)
+
+reset_profile = JWT::ValidationProfile.new(
+  name: 'password-reset',
+  typ: 'reset+JWT',
+  issuer: 'https://id.example.com',
+  audience: 'id.example.com',
+  required_claims: %w[sub iat exp pwr],
+  forbidden_claims: %w[scope],
+  max_lifetime: 1800, # 30 minutes
+  leeway: 5
+)
+
+# A correctly signed reset token passes its own profile...
+JWT.decode(reset_jwt, shared_key, true, algorithms: ['HS256'], profile: reset_profile)
+
+# ...but cannot be used as an access token, even though the signature is valid.
+JWT.decode(reset_jwt, shared_key, true, algorithms: ['HS256'], profile: access_profile)
+# => JWT::ProfileViolation: Validation profile 'access' violated: typ: Invalid typ...;
+#    aud: Invalid audience...; forbidden_claims: Forbidden claim(s) present: pwr
+```
+
+Profiles can also be used standalone or through `JWT::EncodedToken`:
+
+```ruby
+access_profile.valid?(payload, header)           # => true or false
+access_profile.violations(payload, header)       # => [#<struct JWT::ValidationProfile::RuleViolation ...>]
+access_profile.verify!(payload, header)          # => nil or raises JWT::ProfileViolation
+
+encoded_token.verify!(signature: { algorithm: 'HS256', key: shared_key }, profile: access_profile)
+```
+
+**Custom rules** are pure callables receiving `(payload, header)`. Return a
+truthy value to pass, return `false`/`nil` or a failure message `String` to
+fail, or raise a `JWT::ClaimValidationError`. Rules are expected to be pure
+validation: they must not perform I/O or depend on external state other than
+the injected clock.
+
+```ruby
+profile = JWT::ValidationProfile.new(
+  rules: {
+    numeric_subject: ->(payload, _header) { payload['sub'].is_a?(Numeric) },
+    bounded_scope:   ->(payload, _header) { payload['scope'] == 'read' || 'scope must be read-only' }
+  }
+)
+```
+
+**Clock and leeway.** Every time based rule uses the profile's `clock` (a
+callable returning the current time, defaulting to `-> { Time.now }`) and
+compares it against `exp`, `nbf`, `iat` and the `iat`/`exp` lifetime. Inject a
+fixed clock in tests for deterministic results:
+
+```ruby
+profile = JWT::ValidationProfile.new(clock: -> { Time.at(1_700_000_000) }, max_lifetime: 600)
+```
+
+`leeway` (in seconds) only widens the tolerance of these time comparisons; it
+never relaxes structural rules such as required or forbidden claims, `typ`,
+`iss` or `aud`.
+
 ### Finding a Key
 
 To dynamically find the key for verifying the JWT signature, pass a block to the decode block. The block receives headers and the original payload as parameters. It should return with the key to verify the signature that was used to sign the JWT.
