@@ -7,6 +7,7 @@
 **Features:**
 
 - Your contribution here
+- Add `JWT::JWK::KeyFilter` and a `key_filter` option for JWKS key lookup, jointly checking `alg`, `kty`, `use`, `key_ops` and an optional RFC 7638 thumbprint whitelist, with distinct handling of no match, a unique match and ambiguous matches
 
 **Fixes and enhancements:**
 

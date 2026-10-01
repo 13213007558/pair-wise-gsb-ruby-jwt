@@ -710,6 +710,42 @@ rescue JWT::TokenError
 end
 ```
 
+### Filtering keys during lookup
+
+A JWKS may keep keys from before and after a rotation and may even contain
+encryption keys sharing a `kid` with signing keys. The `key_filter` option
+accepts a server side selection strategy (`JWT::JWK::KeyFilter`) that jointly
+checks the key metadata against the verification requirements:
+
+* `alg` - a key carrying an `alg` parameter must match the token algorithm.
+* `kty` - the key type must match the type required by the algorithm
+  (e.g. `RS256` requires an `RSA` key, `HS256` an `oct` key), so a HMAC key
+  can never be mistaken for a RSA key sharing the same `kid`.
+* `use` - a key carrying a `use` parameter must be meant for signatures
+  (`"sig"` by default).
+* `key_ops` - a key carrying `key_ops` must include the `"verify"` operation.
+* `thumbprints` - an optional whitelist of RFC 7638 public key thumbprints.
+
+Missing metadata is treated as compatible, while contradicting metadata
+rejects the key. When the filter is active the lookup never silently picks
+the first matching key: if no key survives the filtering a
+`JWT::SignatureError` is raised, and if more than one key survives a
+`JWT::JWKError` is raised. This makes the verification outcome independent
+of the key order in the JWKS.
+
+```ruby
+filter = JWT::JWK::KeyFilter.new(
+  use: 'sig',                 # default
+  key_ops: ['verify'],        # default
+  thumbprints: ['NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs'] # optional whitelist
+)
+
+JWT.decode(token, nil, true, algorithms: ['RS512'], jwks: jwks_loader, key_filter: filter)
+```
+
+The option also accepts a plain `Hash` with the same keys, or any callable
+receiving the JWK and the token header.
+
 ### Importing and exporting JSON Web Keys
 
 The ::JWT::JWK class can be used to import both JSON Web Keys and OpenSSL keys

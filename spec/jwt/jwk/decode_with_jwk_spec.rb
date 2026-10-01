@@ -121,6 +121,57 @@ RSpec.describe JWT do
       end
     end
 
+    context 'when a key_filter option is given' do
+      let(:hmac_jwk) { JWT::JWK.new('secret', jwk.kid) }
+      let(:jwks)     { { keys: [hmac_jwk.export(include_private: true), valid_key] } }
+
+      it 'decodes the token using the key matching the token algorithm' do
+        payload, _header = described_class.decode(signed_token, nil, true, { algorithms: [algorithm], jwks: jwks, key_filter: {} })
+        expect(payload).to eq(token_payload)
+      end
+
+      it 'is not affected by the order of the keys in the jwks' do
+        reversed = { keys: jwks[:keys].reverse }
+        payload, _header = described_class.decode(signed_token, nil, true, { algorithms: [algorithm], jwks: reversed, key_filter: {} })
+        expect(payload).to eq(token_payload)
+      end
+
+      it 'accepts a JWT::JWK::KeyFilter instance' do
+        filter = JWT::JWK::KeyFilter.new(thumbprints: [JWT::JWK::Thumbprint.new(jwk).generate])
+        payload, _header = described_class.decode(signed_token, nil, true, { algorithms: [algorithm], jwks: jwks, key_filter: filter })
+        expect(payload).to eq(token_payload)
+      end
+
+      it 'raises when the thumbprint whitelist does not contain the key' do
+        filter = JWT::JWK::KeyFilter.new(thumbprints: ['not-a-known-thumbprint'])
+        expect { described_class.decode(signed_token, nil, true, { algorithms: [algorithm], jwks: jwks, key_filter: filter }) }.to raise_error(
+          JWT::SignatureError, /Could not find public key for kid .*/
+        )
+      end
+
+      it 'raises when the key metadata contradicts the verification requirements' do
+        jwks_with_enc_key = { keys: [valid_key.merge(use: 'enc')] }
+        expect { described_class.decode(signed_token, nil, true, { algorithms: [algorithm], jwks: jwks_with_enc_key, key_filter: {} }) }.to raise_error(
+          JWT::SignatureError, /Could not find public key for kid .*/
+        )
+      end
+
+      it 'raises when multiple keys survive the filtering' do
+        other_jwk = JWT::JWK.new(test_pkey('rsa-2048-private.pem'), jwk.kid)
+        jwks_with_duplicates = { keys: [valid_key, other_jwk.export] }
+        expect { described_class.decode(signed_token, nil, true, { algorithms: [algorithm], jwks: jwks_with_duplicates, key_filter: {} }) }.to raise_error(
+          JWT::JWKError, /Multiple keys found in jwks for kid/
+        )
+      end
+
+      it 'raises when the token algorithm contradicts an explicit filter algorithm' do
+        filter = JWT::JWK::KeyFilter.new(algorithm: 'RS256')
+        expect { described_class.decode(signed_token, nil, true, { algorithms: [algorithm], jwks: jwks, key_filter: filter }) }.to raise_error(
+          JWT::IncorrectAlgorithm
+        )
+      end
+    end
+
     context 'mixing algorithms using kid header' do
       let(:hmac_jwk)           { JWT::JWK.new('secret') }
       let(:rsa_jwk)            { JWT::JWK.new(test_pkey('rsa-2048-private.pem')) }
