@@ -667,13 +667,46 @@ To decode a JWT using a trusted entity's JSON Web Key Set (JWKS):
 
 ```ruby
 jwks = JWT::JWK::Set.new(jwks_hash)
-jwks.filter! {|key| key[:use] == 'sig' } # Signing keys only!
 algorithms = jwks.map { |key| key[:alg] }.compact.uniq
 JWT.decode(token, nil, true, algorithms: algorithms, jwks: jwks)
 ```
 
+The key finder does not simply use the first JWK whose `kid` matches the token
+header. The keys matching the token's key identifier (`kid`, `x5t`, ...) are
+further narrowed down with a server side selection policy that jointly checks:
+
+* the JWK `kty` against the token algorithm (e.g. an RSA and an HMAC key sharing
+  the same `kid` can never be used interchangeably),
+* the JWK `alg`, when present, against the token `alg`,
+* the JWK `use` (`sig` only) and `key_ops` (`verify` required) parameters,
+* an optional whitelist of [RFC 7638](https://www.rfc-editor.org/rfc/rfc7638)
+  public key thumbprints passed with the `allowed_thumbprints` option
+  (alias: `thumbprint_whitelist`).
+
+Missing `alg`, `use` and `key_ops` metadata is accepted for backwards
+compatibility, while malformed or contradictory metadata (for example
+`use: 'enc'` together with `key_ops: ['verify']`) raises a `JWT::JWKError`.
+
+The three possible outcomes of the selection are handled explicitly:
+
+* no key survives the policy raises `JWT::SignatureError`,
+* exactly one key survives and is used for verification,
+* more than one *distinct* key survives raises `JWT::AmbiguousKeyError` instead
+  of silently choosing the first key (identical repeated JWK entries are
+  collapsed into one key).
+
+The selection result never depends on the order of the keys in the JWKS.
+
+```ruby
+JWT.decode(token, nil, true,
+           algorithms: ['RS512'],
+           jwks: jwks,
+           allowed_thumbprints: ['NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs'])
+```
+
 The `jwks` option can also be given as a lambda that evaluates every time a key identifier is resolved.
-This can be used to implement caching of remotely fetched JWK Sets.
+This can be used to implement caching of remotely fetched JWK Sets. The key
+finder itself never fetches anything over the network.
 
 Key identifiers can be specified using `kid`, `x5t` header parameters.
 If the requested identifier is not found from the given set the loader will be called a second time with the `kid_not_found` option set to `true`.

@@ -1,5 +1,14 @@
 # Upgrading ruby-jwt to >= 3.3.0
 
+## JWKS key selection
+
+The key finder used with the `jwks` decode option no longer takes the first JWK whose key identifier matches. It now applies a server side selection policy that also checks the JWK `alg`, `kty`, `use` and `key_ops` parameters (with an optional `allowed_thumbprints` whitelist). Consequences to be aware of when upgrading:
+
+- A JWKS that contains several *distinct* keys surviving the policy for one token now raises `JWT::AmbiguousKeyError` (a `JWT::SignatureError`) instead of silently using the first one. Give the rotating keys distinct metadata (for example an explicit `alg`) or use `allowed_thumbprints` to make the match unique.
+- A key of the wrong type for the token algorithm is filtered out, so a token without any fitting key fails with "Could not find public key" rather than with a low level verification error. This also means an RSA and an HMAC key sharing the same `kid` can no longer be used interchangeably.
+- JWKs carrying contradictory metadata, such as `use: 'enc'` together with `key_ops: ['verify']`, raise `JWT::JWKError`.
+- Missing `alg`, `use` and `key_ops` metadata is still accepted for backwards compatibility.
+
 ## Error hierarchy revamp
 
 The [error classes were reorganised](https://github.com/jwt/ruby-jwt/pull/722) under a new `JWT::Error` base class, so failures can be rescued by category instead of one class at a time:

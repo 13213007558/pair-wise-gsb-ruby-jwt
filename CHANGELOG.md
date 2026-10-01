@@ -6,7 +6,7 @@
 
 **Features:**
 
-- Your contribution here
+- The JWKS key finder now applies a server side selection policy: besides the key identifier (`kid`, `x5t`, ...) it jointly checks the JWK `alg`, `kty`, `use` and `key_ops` parameters and accepts an optional `allowed_thumbprints` (`thumbprint_whitelist`) RFC 7638 whitelist. No surviving key raises `JWT::SignatureError`, several distinct surviving keys raise the new `JWT::AmbiguousKeyError` instead of silently using the first key, and contradictory metadata raises `JWT::JWKError`. The selection is independent of the JWKS key order and keys of different types sharing a `kid` can no longer be used interchangeably.
 
 **Fixes and enhancements:**
 

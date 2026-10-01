@@ -131,25 +131,25 @@ RSpec.describe JWT do
       context 'when RSA key is pointed to as HMAC secret' do
         let(:signed_token) { described_class.encode({ 'foo' => 'bar' }, 'is not really relevant in the scenario', 'HS256', { kid: rsa_jwk.kid }) }
 
-        it 'raises JWT::VerificationKeyError' do
-          expect { described_class.decode(signed_token, nil, true, algorithms: ['HS256'], jwks: jwks) }.to raise_error(JWT::VerificationKeyError, 'HMAC key expected to be a String')
+        it 'does not let the RSA key substitute the HMAC key' do
+          expect { described_class.decode(signed_token, nil, true, algorithms: ['HS256'], jwks: jwks) }.to raise_error(JWT::SignatureError, /Could not find public key for kid/)
         end
       end
 
       context 'when EC key is pointed to as HMAC secret' do
         let(:signed_token) { described_class.encode({ 'foo' => 'bar' }, 'is not really relevant in the scenario', 'HS256', { kid: ec_jwk_secp384r1.kid }) }
 
-        it 'raises JWT::VerificationKeyError' do
-          expect { described_class.decode(signed_token, nil, true, algorithms: ['HS256'], jwks: jwks) }.to raise_error(JWT::VerificationKeyError, 'HMAC key expected to be a String')
+        it 'does not let the EC key substitute the HMAC key' do
+          expect { described_class.decode(signed_token, nil, true, algorithms: ['HS256'], jwks: jwks) }.to raise_error(JWT::SignatureError, /Could not find public key for kid/)
         end
       end
 
       context 'when EC key is pointed to as RSA public key' do
         let(:signed_token) { described_class.encode({ 'foo' => 'bar' }, rsa_jwk.signing_key, algorithm, { kid: ec_jwk_secp384r1.kid }) }
 
-        it 'fails in some way' do
+        it 'does not let the EC key substitute the RSA key' do
           expect { described_class.decode(signed_token, nil, true, algorithms: [algorithm], jwks: jwks) }.to(
-            raise_error(JWT::VerificationKeyError, 'The given key is a OpenSSL::PKey::EC. It has to be an OpenSSL::PKey::RSA instance')
+            raise_error(JWT::SignatureError, /Could not find public key for kid/)
           )
         end
       end
@@ -157,9 +157,9 @@ RSpec.describe JWT do
       context 'when HMAC secret is pointed to as RSA public key' do
         let(:signed_token) { described_class.encode({ 'foo' => 'bar' }, rsa_jwk.signing_key, algorithm, { kid: hmac_jwk.kid }) }
 
-        it 'fails in some way' do
+        it 'does not let the HMAC key substitute the RSA key' do
           expect { described_class.decode(signed_token, nil, true, algorithms: [algorithm], jwks: jwks) }.to(
-            raise_error(JWT::VerificationKeyError, 'The given key is a String. It has to be an OpenSSL::PKey::RSA instance')
+            raise_error(JWT::SignatureError, /Could not find public key for kid/)
           )
         end
       end
@@ -167,9 +167,9 @@ RSpec.describe JWT do
       context 'when HMAC secret is pointed to as EC public key' do
         let(:signed_token) { described_class.encode({ 'foo' => 'bar' }, ec_jwk_secp384r1.signing_key, 'ES384', { kid: hmac_jwk.kid }) }
 
-        it 'fails in some way' do
+        it 'does not let the HMAC key substitute the EC key' do
           expect { described_class.decode(signed_token, nil, true, algorithms: ['ES384'], jwks: jwks) }.to(
-            raise_error(JWT::VerificationKeyError, 'The given key is a String. It has to be an OpenSSL::PKey::EC instance')
+            raise_error(JWT::SignatureError, /Could not find public key for kid/)
           )
         end
       end

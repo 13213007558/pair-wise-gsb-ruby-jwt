@@ -34,6 +34,11 @@ module JWT
   # verification cannot be used, as opposed to a signature that does not match.
   class VerificationKeyError < VerificationError; end
 
+  # The AmbiguousKeyError class is raised when a JWKS contains more than one
+  # key that satisfies the server side key selection policy for a token. The
+  # library never silently picks the first key in this situation.
+  class AmbiguousKeyError < VerificationKeyError; end
+
   # The IncorrectAlgorithm class is raised when the JWT algorithm is incorrect.
   class IncorrectAlgorithm < SignatureError; end
 
