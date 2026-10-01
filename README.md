@@ -758,6 +758,111 @@ jwk_hash = jwk.export
 thumbprint_as_the_kid = jwk_hash[:kid]
 ```
 
+## Selective Disclosure JWT (SD-JWT, RFC 9901)
+
+The library implements [RFC 9901](https://www.rfc-editor.org/rfc/rfc9901):
+issuers can hide object members and array elements behind hashes, and holders
+release only the claims a verifier is supposed to see. Object members, array
+elements and arbitrarily nested objects are supported. Signing and signature
+verification reuse the existing algorithms and key interfaces, and the optional
+Key Binding JWT is verified against the audience, nonce and `sd_hash`. The
+credential network protocol is deliberately not implemented.
+
+The classes live under `JWT::SDJWT`:
+
+| Class / Module | Purpose |
+| --- | --- |
+| `JWT::SDJWT::Issuer` | Builds the issuer JWT from the full claims. |
+| `JWT::SDJWT::Disclosure` | A single object member or array element disclosure. |
+| `JWT::SDJWT::Presentation` | Combines the issuer JWT with selected disclosures. |
+| `JWT::SDJWT::Verifier` | Verifies a presentation and returns the disclosed claims. |
+| `JWT::SDJWT::KeyBinding` | Builds and verifies the optional Key Binding JWT. |
+
+### Issuing an SD-JWT
+
+```ruby
+claims = {
+  name: 'Alice',
+  age: 42,
+  address: { country: 'US', locality: 'Springfield' },
+  nationalities: ['US', 'DE']
+}
+
+issued = JWT::SDJWT.issue(claims, key: private_key, algorithm: 'ES256') do |issuer|
+  issuer.disclose(:name)                                   # object member
+  issuer.disclose(:age)
+  issuer.disclose('address', :country)                    # nested object member
+  issuer.disclose('nationalities', 0)                     # array element
+end
+
+issued.jwt            # the signed issuer JWT
+issued.disclosures    # the claims the holder may release
+issued.to_s           # combined issuer-SD-JWT (ends with '~')
+```
+
+### Presenting selected claims
+
+```ruby
+# reveal the name and the country nested in the address
+presentation = JWT::SDJWT.present(issued, :name, ['address', 'country'])
+
+# present a claim together with everything nested below it
+presentation = JWT::SDJWT.present(issued, [['address'], :subtree])
+```
+
+### Verifying a presentation
+
+Only the claims actually disclosed end up in the result. Digests the holder did
+not reveal simply stay hidden. Duplicate digests, unreferenced disclosures,
+claims that would override an existing one, malformed nesting and bad issuer
+signatures are rejected.
+
+```ruby
+result = JWT::SDJWT.verify(
+  presentation.to_s,
+  key: issuer_public_key,
+  algorithms: ['ES256']
+)
+
+result.claims      # => { 'name' => 'Alice', 'address' => { 'country' => 'US' } }
+result.header      # the issuer JWT header
+result.disclosures # the disclosures the verifier actually used
+```
+
+Registered JWT claims can be checked against the disclosed result:
+
+```ruby
+JWT::SDJWT.verify(presentation.to_s,
+                  key: issuer_public_key,
+                  algorithms: ['ES256'],
+                  claims: { iss: 'https://issuer.example' })
+```
+
+### Key Binding JWT
+
+When the issuer JWT contains a `cnf.jwk` claim, the holder can add a Key
+Binding JWT. The verifier checks that it is signed by the bound key and that
+its `aud`, `nonce` and `sd_hash` match:
+
+```ruby
+JWT::SDJWT.bind_key(presentation,
+                    key: holder_key,
+                    algorithm: 'ES256',
+                    audience: 'https://verifier.example',
+                    nonce: verifier_nonce)
+
+JWT::SDJWT.verify(presentation.to_s,
+                  key: issuer_public_key,
+                  algorithms: ['ES256'],
+                  expected_audience: 'https://verifier.example',
+                  expected_nonce: verifier_nonce)
+```
+
+A runnable demonstration using fixed salts and locally generated keys (two
+different disclosure sets for the same credential, one of them with an
+unrelated disclosure that fails verification) can be found in
+[`examples/sd_jwt_demo.rb`](examples/sd_jwt_demo.rb).
+
 ## Development and testing
 
 The tests are written with rspec. [Appraisal](https://github.com/thoughtbot/appraisal) is used to ensure compatibility with 3rd party dependencies providing cryptographic features.

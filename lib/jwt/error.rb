@@ -78,4 +78,32 @@ module JWT
 
   # Raised when a JWK uses a key type (kty) that this library does not support.
   class UnsupportedKeyType < JWKError; end
+
+  # The base class for all errors raised while processing SD-JWTs (RFC 9901).
+  class SDJWTError < DecodeError; end
+
+  # Raised when an SD-JWT or a Disclosure is structurally malformed.
+  class SDJWTMalformedError < SDJWTError; end
+
+  # Raised when an SD-JWT cannot be issued because of the given claims or paths.
+  class SDJWTIssueError < SDJWTError; end
+
+  # Raised when an SD-JWT presentation fails verification.
+  class SDJWTVerificationError < SDJWTError; end
+
+  # Raised when the same digest or disclosure is provided more than once.
+  class SDJWTDuplicateDigestError < SDJWTVerificationError; end
+
+  # Raised when a disclosure is not referenced by any digest in the SD-JWT.
+  class SDJWTUnreferencedDisclosureError < SDJWTVerificationError; end
+
+  # Raised when a disclosed claim overrides a claim that is already present.
+  class SDJWTClaimOverlapError < SDJWTVerificationError; end
+
+  # Raised when a disclosure is nested in an illegal place (e.g. inside an
+  # array element that is not itself an object carrying the digest).
+  class SDJWTInvalidNestingError < SDJWTVerificationError; end
+
+  # Raised when the optional Key Binding JWT cannot be verified.
+  class SDJWTKeyBindingError < SDJWTVerificationError; end
 end

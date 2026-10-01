@@ -6,6 +6,7 @@
 
 **Features:**
 
+- Add RFC 9901 Selective Disclosure for JWTs (SD-JWT): issuing, presenting and verification of selectively disclosable object members, array elements and nested claims, including the optional Key Binding JWT (`JWT::SDJWT`)
 - Your contribution here
 
 **Fixes and enhancements:**
