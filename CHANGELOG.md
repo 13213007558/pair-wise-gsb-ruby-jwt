@@ -6,6 +6,7 @@
 
 **Features:**
 
+- Add `JWT.prepare`/`JWT.finalize` two-phase signing API (`JWT::SigningRequest`) for external signers such as offline HSMs, with signature verification against the pinned request and support for RSA-PSS and ECDSA signature encoding differences (raw, Base64/Base64URL, ASN.1 DER)
 - Your contribution here
 
 **Fixes and enhancements:**

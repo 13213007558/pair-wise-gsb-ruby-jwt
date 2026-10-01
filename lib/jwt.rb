@@ -11,6 +11,8 @@ require 'jwt/jwk'
 require 'jwt/claims'
 require 'jwt/encoded_token'
 require 'jwt/token'
+require 'jwt/external_signature'
+require 'jwt/signing_request'
 
 # JSON Web Token implementation
 #
@@ -44,5 +46,33 @@ module JWT
   # @return [Array<Hash>] the decoded payload and headers.
   def decode(jwt, key = nil, verify = true, options = {}, &keyfinder) # rubocop:disable Style/OptionalBooleanParameter
     Decode.new(jwt, key, verify, configuration.decode.to_h.merge(options), &keyfinder).decode_segments
+  end
+
+  # Prepares a signing request for a two-phase external signing flow, where
+  # the actual signing to be done by an external system holding the private
+  # key (for example an offline HSM or an approval based signing service).
+  #
+  # @param payload [Hash] the payload to encode.
+  # @param algorithm [String] the algorithm the external signer will use.
+  # @param headers [Hash] additional headers to include in the JWT.
+  # @return [JWT::SigningRequest] a serializable signing request pinning the
+  #   algorithm, header, payload and the exact bytes to sign.
+  def prepare(payload, algorithm:, headers: {})
+    SigningRequest.prepare(payload, algorithm: algorithm, headers: headers)
+  end
+
+  # Finalizes a prepared signing request with the signature returned by the
+  # external signer. The signature is verified against the pinned request
+  # using the provided public key before the token is assembled.
+  #
+  # @param request [JWT::SigningRequest, Hash, String] the prepared request,
+  #   or its serialized form ({JWT::SigningRequest#to_h} or {JWT::SigningRequest#to_json}).
+  # @param signature [String] the signature produced by the external signer.
+  # @param key [Object] the public key corresponding to the external signer's private key.
+  # @return [String] the encoded JWT.
+  def finalize(request, signature, key:)
+    request = SigningRequest.from_json(request) if request.is_a?(String)
+    request = SigningRequest.from_h(request) if request.is_a?(Hash)
+    request.finalize(signature, key: key)
   end
 end
