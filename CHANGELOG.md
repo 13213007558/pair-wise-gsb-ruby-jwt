@@ -7,6 +7,7 @@
 **Features:**
 
 - Your contribution here
+- Add `strict_decoding` option to reject duplicate JSON keys in the header and payload, with JSON path and byte offsets reported via `JWT::StrictDecodingError`
 
 **Fixes and enhancements:**
 

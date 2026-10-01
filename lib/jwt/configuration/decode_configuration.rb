@@ -26,6 +26,10 @@ module JWT
       #   @return [Array<String>] the list of required claims.
       # @!attribute [rw] enforce_hmac_key_length
       #   @return [Boolean] whether to enforce minimum HMAC key lengths. false disables validation (default).
+      # @!attribute [rw] strict_decoding
+      #   @return [Boolean, Hash] whether to strictly decode the header and payload JSON,
+      #   rejecting duplicate object keys and enforcing size and nesting depth limits.
+      #   A hash can be given to configure the limits via the `max_size` and `max_depth` keys.
 
       attr_accessor :verify_expiration,
                     :verify_not_before,
@@ -37,7 +41,8 @@ module JWT
                     :leeway,
                     :algorithms,
                     :required_claims,
-                    :enforce_hmac_key_length
+                    :enforce_hmac_key_length,
+                    :strict_decoding
 
       # Initializes a new DecodeConfiguration instance with default settings.
       def initialize
@@ -52,6 +57,7 @@ module JWT
         @algorithms = ['HS256']
         @required_claims = []
         @enforce_hmac_key_length = false
+        @strict_decoding = false
       end
 
       # @api private
@@ -67,7 +73,8 @@ module JWT
           leeway: leeway,
           algorithms: algorithms,
           required_claims: required_claims,
-          enforce_hmac_key_length: enforce_hmac_key_length
+          enforce_hmac_key_length: enforce_hmac_key_length,
+          strict_decoding: strict_decoding
         }
       end
     end

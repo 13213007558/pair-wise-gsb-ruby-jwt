@@ -25,11 +25,16 @@ module JWT
     # Initializes a new EncodedToken instance.
     #
     # @param jwt [String] the encoded JWT token.
+    # @param strict_decoding [Boolean, Hash] when truthy, the header and payload
+    #   JSON is decoded strictly: duplicate object keys at any nesting level are
+    #   rejected and size and nesting depth limits are enforced. A Hash can be
+    #   given to configure the limits via the +:max_size+ and +:max_depth+ keys.
     # @raise [ArgumentError] if the provided JWT is not a String.
-    def initialize(jwt)
+    def initialize(jwt, strict_decoding: false)
       raise ArgumentError, 'Provided JWT must be a String' unless jwt.is_a?(String)
 
       @jwt = jwt
+      @strict_decoding = strict_decoding
       @signature_verified = false
       @claims_verified    = false
 
@@ -218,9 +223,19 @@ module JWT
     end
 
     def parse(segment)
-      JWT::JSON.parse(segment)
-    rescue ::JSON::ParserError
+      return JWT::JSON.parse(segment) unless @strict_decoding
+
+      StrictJSON.parse(segment, **strict_decoding_options)
+    rescue ::JSON::ParserError, StrictJSON::ParserError
       raise JWT::MalformedTokenError, 'Invalid segment encoding'
+    end
+
+    def strict_decoding_options
+      return {} unless @strict_decoding.is_a?(Hash)
+
+      @strict_decoding.each_with_object({}) do |(key, value), options|
+        options[key.to_sym] = value if %w[max_size max_depth].include?(key.to_s)
+      end
     end
 
     def decoded_payload

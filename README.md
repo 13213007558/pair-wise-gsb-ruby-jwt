@@ -645,6 +645,44 @@ rescue JWT::TokenError
 end
 ```
 
+## Strict JSON decoding
+
+By default the header and payload JSON is parsed with the standard JSON parser, which silently keeps the last value when an object contains the same key twice. For auditing and security sensitive use cases you can enable strict decoding, which rejects duplicate object keys at any nesting level in both the header and the payload:
+
+```ruby
+JWT.decode(token, key, true, { algorithm: 'HS256', strict_decoding: true })
+```
+
+Keys are compared after JSON string decoding, so a key written with Unicode escapes (e.g. `"\u0069ss"`) is considered a duplicate of the same key written literally (`"iss"`).
+
+When a duplicate key is found, a `JWT::StrictDecodingError` (a subclass of `JWT::MalformedTokenError`) is raised, carrying the JSON path of the duplicate member and the byte offsets of both key occurrences within the decoded JSON segment:
+
+```ruby
+begin
+  JWT.decode(token, key, true, { algorithm: 'HS256', strict_decoding: true })
+rescue JWT::StrictDecodingError => e
+  e.message       # => 'Duplicate key "iss" at $.iss'
+  e.path          # => '$.iss'
+  e.key           # => 'iss'
+  e.first_offset  # => 1
+  e.second_offset # => 15
+end
+```
+
+Strict decoding also enforces a maximum JSON size (64 KiB by default) and nesting depth (32 by default). The limits can be tuned by passing a hash:
+
+```ruby
+JWT.decode(token, key, true, { algorithm: 'HS256', strict_decoding: { max_size: 1024, max_depth: 8 } })
+```
+
+The option can also be enabled globally:
+
+```ruby
+JWT.configuration.decode.strict_decoding = true
+```
+
+Signature verification always happens against the original encoded segments, so enabling strict decoding never causes the JSON to be re-serialized before verification.
+
 ## JSON Web Key (JWK)
 
 JWK is a JSON structure representing a cryptographic key. This gem currently supports RSA, EC, OKP and HMAC keys. OKP support requires [RbNaCl](https://github.com/RubyCrypto/rbnacl) and currently only supports the Ed25519 curve.

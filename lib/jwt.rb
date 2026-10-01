@@ -3,6 +3,7 @@
 require 'jwt/version'
 require 'jwt/base64'
 require 'jwt/json'
+require 'jwt/strict_json'
 require 'jwt/decode'
 require 'jwt/configuration'
 require 'jwt/encode'

@@ -23,6 +23,32 @@ module JWT
   # The Base64DecodeError class is raised when there is an error decoding a Base64-encoded string.
   class Base64DecodeError < MalformedTokenError; end
 
+  # The StrictDecodingError class is raised when strict JSON decoding is
+  # enabled and the header or payload JSON contains duplicate object keys or
+  # exceeds the configured size or nesting depth limits.
+  #
+  # For duplicate keys the error carries the JSON path of the duplicate
+  # member and the byte offsets of both occurrences of the key within the
+  # decoded JSON segment.
+  class StrictDecodingError < MalformedTokenError
+    # @return [String, nil] the JSON path of the duplicate key (e.g. "$.iss").
+    attr_reader :path
+    # @return [String, nil] the duplicate key after JSON string decoding.
+    attr_reader :key
+    # @return [Integer, nil] the byte offset of the first occurrence of the key.
+    attr_reader :first_offset
+    # @return [Integer, nil] the byte offset of the second occurrence of the key.
+    attr_reader :second_offset
+
+    def initialize(message = nil, path: nil, key: nil, first_offset: nil, second_offset: nil)
+      @path = path
+      @key = key
+      @first_offset = first_offset
+      @second_offset = second_offset
+      super(message)
+    end
+  end
+
   # The SignatureError class is the base class for signature and algorithm related errors.
   class SignatureError < TokenError; end
 
