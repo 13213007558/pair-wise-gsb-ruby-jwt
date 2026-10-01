@@ -7,8 +7,10 @@ module JWT
       # Initializes a new Expiration instance.
       #
       # @param leeway [Integer] the amount of leeway (in seconds) to allow when validating the expiration time. Default: 0.
-      def initialize(leeway:)
+      # @param clock [#call] an optional callable returning the current time. Used by the verification profiles. Defaults to the system clock.
+      def initialize(leeway:, clock: nil)
         @leeway = leeway || 0
+        @clock  = clock || -> { Time.now }
       end
 
       # Verifies the expiration claim ('exp') in the JWT token.
@@ -21,12 +23,12 @@ module JWT
         return unless context.payload.is_a?(Hash)
         return unless context.payload.key?('exp')
 
-        raise JWT::ExpiredSignature, 'Signature has expired' if context.payload['exp'].to_i <= (Time.now.to_i - leeway)
+        raise JWT::ExpiredSignature, 'Signature has expired' if context.payload['exp'].to_i <= (clock.call.to_i - leeway)
       end
 
       private
 
-      attr_reader :leeway
+      attr_reader :leeway, :clock
     end
   end
 end

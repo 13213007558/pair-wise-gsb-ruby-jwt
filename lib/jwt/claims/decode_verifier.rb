@@ -5,7 +5,7 @@ module JWT
     # Context class to contain the data passed to individual claim validators
     #
     # @api private
-    VerificationContext = Struct.new(:payload, keyword_init: true)
+    VerificationContext = Struct.new(:payload, :header, keyword_init: true)
 
     # Verifiers to support the ::JWT.decode method
     #

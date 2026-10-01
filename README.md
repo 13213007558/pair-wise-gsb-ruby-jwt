@@ -624,6 +624,100 @@ You can specify claims that must be present for decoding to be successful. JWT::
 JWT.decode(token, hmac_secret, true, { required_claims: ['exp'], algorithm: 'HS256' })
 ```
 
+### Validation profiles
+
+Signature verification proves who issued a token, but it cannot tell apart
+tokens minted for different purposes when they share a signing key. An access
+token and a password reset token signed with the same secret are both
+cryptographically valid; checking the signature alone lets a reset token be
+used as an access token.
+
+A `JWT::ValidationProfile` binds the expected `typ` header, `iss` and `aud`
+claims, required and forbidden claims, a maximum lifetime, the temporal
+checks and any custom rules into one reusable, immutable configuration. The
+server chooses the profile for each endpoint, so a token can never pick
+looser rules for itself. Claim rules run only after the signature has been
+verified.
+
+```ruby
+access_profile = JWT::ValidationProfile.new(
+  name: :access,
+  typ: 'access',
+  issuer: 'id.example.com',
+  audience: 'api.example.com',
+  required_claims: %w[sub iat exp],
+  forbidden_claims: %w[reset_purpose],
+  max_lifetime: 15 * 60, # the exp - iat span may not exceed 15 minutes
+  leeway: 5              # clock skew tolerance for exp, nbf and iat
+)
+
+password_reset_profile = JWT::ValidationProfile.new(
+  name: :password_reset,
+  typ: 'password_reset',
+  issuer: 'id.example.com',
+  audience: 'id.example.com',
+  required_claims: %w[sub iat exp reset_purpose],
+  forbidden_claims: %w[scope],
+  max_lifetime: 5 * 60
+)
+
+# Both tokens are signed with the same key and have perfectly valid signatures.
+reset_token = JWT.encode(
+  { iss: 'id.example.com', aud: 'id.example.com', sub: 'user-1',
+    iat: Time.now.to_i, exp: Time.now.to_i + 200, reset_purpose: 'password' },
+  hmac_secret, 'HS256', { typ: 'password_reset' }
+)
+
+# Pass the server-selected profile to JWT.decode. Signature is checked first;
+# the profile rules are evaluated only afterwards.
+JWT.decode(reset_token, hmac_secret, true,
+           { algorithms: ['HS256'], validation_profile: password_reset_profile }) # succeeds
+
+begin
+  JWT.decode(reset_token, hmac_secret, true,
+             { algorithms: ['HS256'], validation_profile: access_profile })
+rescue JWT::ProfileViolation => e
+  e.message    # names the violated rules (typ, aud, forbidden, ...), never the key
+  e.violations # => [#<JWT::ValidationProfile::Violation rule=:typ ...>, ...]
+end
+```
+
+A profile can also verify a token object or a payload hash on its own. Every
+violated rule is collected:
+
+```ruby
+profile.verify!(token)        # raises JWT::ProfileViolation with all violations
+profile.violations(token)     # => [JWT::ValidationProfile::Violation, ...]
+profile.valid?(token)         # => true or false
+```
+
+#### Clock and leeway
+
+Time-based rules (`exp`, `nbf`, `iat`) evaluate against the current time. Pass
+a zero-argument `clock:` callable to freeze time in tests or source it from a
+trusted time service; it defaults to the system clock. `leeway` (seconds)
+widens only these temporal comparisons to absorb clock skew. It does **not**
+apply to `max_lifetime`, which is a difference between the token's own `iat`
+and `exp` and therefore independent of the verifier's clock.
+
+#### Custom verification rules
+
+Pure verification rules, with no access to signature keys, can be objects
+responding to `verify!(context:)` (raising a `JWT::ClaimValidationError`
+subclass on failure) or any callable receiving the context. The context
+exposes both `payload` and `header`:
+
+```ruby
+profile = JWT::ValidationProfile.new(
+  typ: 'access',
+  rules: {
+    scope_required: ->(context) do
+      raise JWT::ClaimValidationError, 'scope missing' unless context.payload['scope']
+    end
+  }
+)
+```
+
 ### X.509 certificates in x5c header
 
 A JWT signature can be verified using certificate(s) given in the `x5c` header. Before doing that, the trustworthiness of these certificate(s) must be established. This is done in accordance with RFC 5280 which (among other things) verifies the certificate(s) are issued by a trusted root certificate, the timestamps are valid, and none of the certificate(s) are revoked (i.e. being present in the root certificate's Certificate Revocation List).

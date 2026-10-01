@@ -6,7 +6,9 @@
 
 **Features:**
 
-- Your contribution here
+- Add `JWT::ValidationProfile`: a reusable, immutable verification profile binding the expected `typ` header, issuer, audience, required and forbidden claims, a maximum lifetime and custom pure verification rules. The server selects the profile via the `validation_profile` decode option, rules run only after signature verification, and a single `JWT::ProfileViolation` names every violated rule without exposing key material.
+- New claim verifiers: `JWT::Claims::Typ` (header type), `JWT::Claims::Forbidden` (disallowed claims) and `JWT::Claims::MaxLifetime` (`exp - iat` cross-claim constraint).
+- The time based claim verifiers (`exp`, `nbf`, `iat`) accept an optional injectable `clock`.
 
 **Fixes and enhancements:**
 

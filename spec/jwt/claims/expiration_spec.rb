@@ -38,3 +38,14 @@ RSpec.describe JWT::Claims::Expiration do
     end
   end
 end
+
+RSpec.describe JWT::Claims::Expiration, 'clock injection' do
+  let(:context) { SpecSupport::Token.new(payload: { 'exp' => 100 }) }
+
+  it 'uses the injected clock instead of the system clock' do
+    verifier = described_class.new(leeway: 0, clock: -> { Time.at(200) })
+    expect { verifier.verify!(context: context) }.to raise_error(JWT::ExpiredSignature)
+
+    described_class.new(leeway: 0, clock: -> { Time.at(90) }).verify!(context: context)
+  end
+end

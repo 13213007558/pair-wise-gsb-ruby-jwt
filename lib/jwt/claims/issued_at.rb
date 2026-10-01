@@ -7,8 +7,10 @@ module JWT
       # Initializes a new IssuedAt instance.
       #
       # @param leeway [Integer] the drift (in seconds) to allow between the clock of the issuer and the clock of the verifier. Default: 0.
-      def initialize(leeway: 0)
+      # @param clock [#call] an optional callable returning the current time. Used by the verification profiles. Defaults to the system clock.
+      def initialize(leeway: 0, clock: nil)
         @leeway = leeway || 0
+        @clock  = clock || -> { Time.now }
       end
 
       # Verifies the issued at claim ('iat') in the JWT token.
@@ -22,12 +24,12 @@ module JWT
         return unless context.payload.key?('iat')
 
         iat = context.payload['iat']
-        raise(JWT::InvalidIatError, 'Invalid iat') if !iat.is_a?(::Numeric) || iat.to_f > (Time.now.to_f + leeway)
+        raise(JWT::InvalidIatError, 'Invalid iat') if !iat.is_a?(::Numeric) || iat.to_f > (clock.call.to_f + leeway)
       end
 
       private
 
-      attr_reader :leeway
+      attr_reader :leeway, :clock
     end
   end
 end

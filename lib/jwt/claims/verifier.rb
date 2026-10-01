@@ -14,6 +14,9 @@ module JWT
         sub: ->(options) { Claims::Subject.new(expected_subject: options[:sub]) },
         crit: ->(options) { Claims::Crit.new(expected_crits: options[:crit]) },
         required: ->(options) { Claims::Required.new(required_claims: options[:required]) },
+        forbidden: ->(options) { Claims::Forbidden.new(forbidden_claims: options[:forbidden]) },
+        typ: ->(options) { Claims::Typ.new(expected_typ: options[:typ]) },
+        max_lifetime: ->(options) { Claims::MaxLifetime.new(max_lifetime: options[:max_lifetime]) },
         numeric: ->(*)        { Claims::Numeric.new }
       }.freeze
 

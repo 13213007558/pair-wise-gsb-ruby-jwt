@@ -125,3 +125,13 @@ RSpec.describe JWT::Claims::IssuedAt do
     end
   end
 end
+
+RSpec.describe JWT::Claims::IssuedAt, 'clock injection' do
+  it 'uses the injected clock when evaluating a future iat claim' do
+    context = SpecSupport::Token.new(payload: { 'iat' => 100 })
+    verifier = described_class.new(clock: -> { Time.at(90) })
+    expect { verifier.verify!(context: context) }.to raise_error(JWT::InvalidIatError)
+
+    described_class.new(clock: -> { Time.at(100) }).verify!(context: context)
+  end
+end

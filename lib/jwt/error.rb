@@ -73,6 +73,36 @@ module JWT
   # The MissingRequiredClaim class is raised when a required claim is missing from the JWT.
   class MissingRequiredClaim < ClaimValidationError; end
 
+  # The InvalidTypError class is raised when the JWT type (typ) header is invalid.
+  class InvalidTypError < ClaimValidationError; end
+
+  # The ForbiddenClaimError class is raised when a claim forbidden by the
+  # verification profile is present in the JWT payload.
+  class ForbiddenClaimError < ClaimValidationError; end
+
+  # The MaxLifetimeExceeded class is raised when the span between the 'iat' and
+  # 'exp' claims exceeds the lifetime allowed by the verification profile.
+  class MaxLifetimeExceeded < ClaimValidationError; end
+
+  # The ProfileViolation class aggregates all rules of a verification profile
+  # violated by a single token. Its message names the rules and their violations
+  # but never exposes signature keys or key material.
+  class ProfileViolation < ClaimValidationError
+    # Initializes a new ProfileViolation.
+    #
+    # @param profile_name [String, Symbol, nil] the name of the profile that was violated.
+    # @param violations [Array<JWT::ValidationProfile::Violation>] the violated rules.
+    def initialize(profile_name, violations)
+      @violations = violations
+      header = profile_name ? "Validation profile '#{profile_name}' violated" : 'Validation profile violated'
+      details = violations.map { |violation| " - #{violation.rule}: #{violation.message}" }.join("\n")
+      super("#{header}:\n#{details}")
+    end
+
+    # @return [Array<JWT::ValidationProfile::Violation>] the violated rules.
+    attr_reader :violations
+  end
+
   # The JWKError class is raised when there is an error with the JSON Web Key (JWK).
   class JWKError < DecodeError; end
 

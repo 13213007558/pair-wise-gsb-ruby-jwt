@@ -39,6 +39,10 @@ module JWT
         set_key
         verify_signature
         Claims::DecodeVerifier.verify!(token.unverified_payload, @options)
+        # The profile is chosen by the server via the decode options; the token
+        # cannot influence it. It runs only after the signature has been
+        # verified and the legacy claim checks have passed.
+        @options[:validation_profile]&.verify!(token)
       end
 
       [token.unverified_payload, token.header]
