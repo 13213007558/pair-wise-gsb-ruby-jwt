@@ -55,5 +55,20 @@ describe JWT::JWK::Thumbprint do
 
       it { is_expected.to eq('dO52_we59sdR49HsGCpVzlDUQNvT3KxCTGakk4Un8qc') }
     end
+    context 'when OKP key is given' do
+      let(:jwk_json) do
+        '
+        {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+        }
+        '
+      end
+
+      it 'matches the RFC 8037 Appendix A.3 canonical thumbprint' do
+        is_expected.to eq('kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k')
+      end
+    end
   end
 end

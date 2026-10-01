@@ -73,6 +73,11 @@ RSpec.describe JWT::JWK do
       it { is_expected.to be_a(JWT::JWK::EC) }
     end
 
+    context 'when an Ed25519 (OKP) key is given' do
+      let(:keypair) { OpenSSL::PKey.new_raw_private_key('Ed25519', OpenSSL::Random.random_bytes(32)) }
+      it { is_expected.to be_a(JWT::JWK::OKP) }
+    end
+
     context 'when kid is given' do
       let(:keypair) { rsa_key }
       let(:options) { 'CUSTOM_KID' }

@@ -19,6 +19,7 @@ module JWT
       attr_reader :alg
 
       def valid_alg?(alg_to_check)
+        alg_to_check = alg_to_check.alg if alg_to_check.is_a?(::JWT::JWA::SigningAlgorithm)
         alg&.casecmp(alg_to_check)&.zero? == true
       end
 

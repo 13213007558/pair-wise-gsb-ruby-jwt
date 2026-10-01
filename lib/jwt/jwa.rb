@@ -4,6 +4,7 @@ require 'openssl'
 
 require_relative 'jwa/signing_algorithm'
 require_relative 'jwa/ecdsa'
+require_relative 'jwa/eddsa'
 require_relative 'jwa/hmac'
 require_relative 'jwa/none'
 require_relative 'jwa/ps'

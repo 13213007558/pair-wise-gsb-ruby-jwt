@@ -41,6 +41,24 @@ RSpec.describe 'README.md code test' do
       expect(decoded_token).to eq([{ 'data' => 'test' }, { 'alg' => 'ES256' }])
     end
 
+    if JWT::JWA::Eddsa.supported?
+      it 'EdDSA with an OKP JWK' do
+        jwk = JWT::JWK.import(
+          kty: 'OKP',
+          crv: 'Ed25519',
+          d: 'nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A',
+          x: '11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo'
+        )
+
+        token = JWT.encode(payload, jwk, 'EdDSA')
+        public_jwk = JWT::JWK.import(jwk.export)
+        expect(public_jwk.export).not_to include(:d)
+        decoded_token = JWT.decode(token, public_jwk, true, algorithms: ['EdDSA'])
+
+        expect(decoded_token).to eq([{ 'data' => 'test' }, { 'alg' => 'EdDSA' }])
+      end
+    end
+
     if Gem::Version.new(OpenSSL::VERSION) >= Gem::Version.new('2.1')
       it 'RSASSA-PSS' do
         rsa_private = OpenSSL::PKey::RSA.generate(2048)

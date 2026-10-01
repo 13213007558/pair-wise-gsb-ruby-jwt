@@ -6,11 +6,11 @@
 
 **Features:**
 
-- Your contribution here
+- Support OKP (`kty=OKP`, `crv=Ed25519`) JWKs and the EdDSA algorithm natively through OpenSSL, without a third party EdDSA gem. JWK import, public key export, RFC 8037 thumbprints and signing/verification are supported, with validation of the `x`/`d` octet lengths, the key pair consistency and the curve.
 
 **Fixes and enhancements:**
 
-- Your contribution here
+- Allow a resolved `JWT::JWA::SigningAlgorithm` instance to be compared in `valid_alg?`
 
 ## [v3.3.0](https://github.com/jwt/ruby-jwt/tree/v3.3.0) (2026-09-11)
 
