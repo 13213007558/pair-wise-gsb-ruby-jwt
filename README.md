@@ -645,6 +645,45 @@ rescue JWT::TokenError
 end
 ```
 
+## Strict JSON decoding
+
+JSON objects technically allow two members with the same name, and Ruby's
+`Hash` keeps only the last value. An audit therefore cannot tell from the
+decoded payload whether a token carried, for example, two `iss` claims.
+Passing `strict_json: true` (or enabling it globally) parses the header and
+payload with a strict RFC 8259 decoder that instead rejects:
+
+* duplicate member names at any nesting level. Names are compared after
+  unescaping, so `"iss"` and `"\u0069iss"` are the same member,
+* documents larger than 10 MiB or nested deeper than 100 levels,
+* any other malformed JSON.
+
+Errors raise `JWT::JSONParseError` (a `JWT::MalformedTokenError`), and
+duplicate members raise `JWT::DuplicateJSONKeyError` carrying the JSON path
+(e.g. `$.iss` in the payload or `$.alg` in the header) and the zero-based byte positions of
+both keys. Braces and quotes inside JSON strings never influence the check.
+
+```ruby
+# Per token
+JWT.decode(token, key, true, algorithms: ['HS256'], strict_json: true)
+
+# Globally
+JWT.configure do |config|
+  config.decode.strict_json = true
+end
+```
+
+`JWT::EncodedToken` accepts the same option:
+
+```ruby
+JWT::EncodedToken.new(token, strict_json: true)
+```
+
+Signature verification always uses the original encoded header and payload
+segments; the strict decoder never re-serializes the JSON it parsed, so a
+signature made over a re-serialized copy of an ambiguous token cannot be used
+to make the ambiguous bytes verify.
+
 ## JSON Web Key (JWK)
 
 JWK is a JSON structure representing a cryptographic key. This gem currently supports RSA, EC, OKP and HMAC keys. OKP support requires [RbNaCl](https://github.com/RubyCrypto/rbnacl) and currently only supports the Ed25519 curve.

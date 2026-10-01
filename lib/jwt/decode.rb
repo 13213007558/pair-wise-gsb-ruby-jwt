@@ -22,7 +22,8 @@ module JWT
     def initialize(jwt, key, verify, options, &keyfinder)
       raise JWT::MalformedTokenError, 'Nil JSON web token' unless jwt
 
-      @token = EncodedToken.new(jwt)
+      strict_json = options.fetch(:strict_json, JWT.configuration.decode.strict_json)
+      @token = EncodedToken.new(jwt, strict_json: strict_json == true)
       @key = key
       @options = options
       @verify = verify

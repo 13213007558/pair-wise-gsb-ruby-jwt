@@ -23,6 +23,44 @@ module JWT
   # The Base64DecodeError class is raised when there is an error decoding a Base64-encoded string.
   class Base64DecodeError < MalformedTokenError; end
 
+  # The JSONParseError class is raised when a JWT header or payload segment is
+  # not valid JSON. In strict mode it also carries the byte position at which
+  # parsing failed.
+  class JSONParseError < MalformedTokenError
+    # @return [Integer, nil] the zero-based byte position of the failure within the JSON segment.
+    attr_reader :position
+
+    def initialize(message = 'Invalid JSON encoding', position: nil)
+      @position = position
+      super(message)
+    end
+  end
+
+  # The DuplicateJSONKeyError class is raised in strict JSON decoding mode when
+  # an object contains two members with the same name, e.g. two "iss" claims.
+  class DuplicateJSONKeyError < JSONParseError
+    # @return [String] the JSON path of the duplicate member within its segment (e.g. "$.foo[0].iss").
+    attr_reader :path
+    # @return [String] the decoded member name that appeared more than once.
+    attr_reader :key
+    # @return [Integer] the zero-based byte position of the first member's key.
+    attr_reader :first_position
+    # @return [Integer] the zero-based byte position of the duplicate member's key.
+    attr_reader :duplicate_position
+
+    def initialize(path:, key:, first_position:, duplicate_position:) # rubocop:disable Metrics/ParameterLists
+      @path               = path
+      @key                = key
+      @first_position     = first_position
+      @duplicate_position = duplicate_position
+      super(
+        "Duplicate member \"#{key}\" in JSON object at #{path}: " \
+        "keys at byte positions #{first_position} and #{duplicate_position}",
+        position: duplicate_position
+      )
+    end
+  end
+
   # The SignatureError class is the base class for signature and algorithm related errors.
   class SignatureError < TokenError; end
 

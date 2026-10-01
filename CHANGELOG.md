@@ -6,7 +6,7 @@
 
 **Features:**
 
-- Your contribution here
+- Add an explicit `strict_json` decode option that parses header and payload segments with a strict RFC 8259 decoder rejecting duplicate object members at any depth (including a key written as a Unicode escape), with configurable document size and nesting depth limits. Duplicate members raise `JWT::DuplicateJSONKeyError` reporting the JSON path and both keys' byte positions; other JSON failures raise `JWT::JSONParseError`. Both are `JWT::MalformedTokenError` descendants.
 
 **Fixes and enhancements:**
 

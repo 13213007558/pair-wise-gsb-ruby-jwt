@@ -25,11 +25,15 @@ module JWT
     # Initializes a new EncodedToken instance.
     #
     # @param jwt [String] the encoded JWT token.
+    # @param strict_json [Boolean] when true, header and payload segments are parsed with
+    #   {JWT::JSON}'s strict decoder, which rejects duplicate object members at any depth,
+    #   including a key written once literally and once as a Unicode escape.
     # @raise [ArgumentError] if the provided JWT is not a String.
-    def initialize(jwt)
+    def initialize(jwt, strict_json: false)
       raise ArgumentError, 'Provided JWT must be a String' unless jwt.is_a?(String)
 
       @jwt = jwt
+      @strict_json = strict_json
       @signature_verified = false
       @claims_verified    = false
 
@@ -218,7 +222,7 @@ module JWT
     end
 
     def parse(segment)
-      JWT::JSON.parse(segment)
+      JWT::JSON.parse(segment, strict: @strict_json)
     rescue ::JSON::ParserError
       raise JWT::MalformedTokenError, 'Invalid segment encoding'
     end
