@@ -451,4 +451,14 @@ RSpec.describe 'README.md code test' do
       expect { encoded_token.verify!(signature: { algorithm: %w[HS256 HS512], key: jwk }) }.not_to raise_error
     end
   end
+
+  context 'raw payload signing (JWS, RFC 7797)' do
+    it 'signs and verifies raw bytes with a detached unencoded payload' do
+      file_bytes = "\x00raw\xFFfile.bytes\n".b
+
+      jws = JWT::JWS.sign(file_bytes, 'secret', 'HS256', { b64: false }, detached: true)
+
+      expect(JWT::JWS.verify(jws, 'secret', 'HS256', payload: file_bytes)).to eq(file_bytes)
+    end
+  end
 end

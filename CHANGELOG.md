@@ -6,10 +6,12 @@
 
 **Features:**
 
+- Add `JWT::JWS` for signing and verifying raw payload bytes with RFC 7797 (`b64: false`) support, focusing on the detached compact form
 - Your contribution here
 
 **Fixes and enhancements:**
 
+- Reject tokens with an unencoded payload (`b64: false`) in the `JWT.decode` claims API; use `JWT::JWS` for those
 - Your contribution here
 
 ## [v3.3.0](https://github.com/jwt/ruby-jwt/tree/v3.3.0) (2026-09-11)

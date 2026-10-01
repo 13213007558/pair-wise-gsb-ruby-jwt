@@ -34,6 +34,7 @@ module JWT
     # @return [Array<Hash>] an array containing the decoded payload and header.
     def decode_segments
       validate_segment_count!
+      reject_unencoded_payload!
       if @verify
         verify_algo
         set_key
@@ -110,6 +111,14 @@ module JWT
       return if segment_count == 2 && none_algorithm?
 
       raise JWT::MalformedTokenError, 'Not enough or too many segments'
+    end
+
+    # The JWT claims API only accepts normal JWTs with a base64url-encoded
+    # payload. Unencoded payloads (RFC 7797) are handled by JWT::JWS.
+    def reject_unencoded_payload!
+      return unless valid_token_header? && token.header['b64'] == false
+
+      raise JWT::MalformedTokenError, 'Unencoded payload (b64=false) is not supported, use JWT::JWS instead'
     end
 
     def none_algorithm?

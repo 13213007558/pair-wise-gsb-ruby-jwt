@@ -325,6 +325,39 @@ encoded_token.verify_signature!(algorithm: 'HS256', key: "secret")
 encoded_token.payload # => {"pay"=>"load"}
 ```
 
+## Raw payload signing (JWS, RFC 7797)
+
+The `JWT::JWS` module signs and verifies raw payload bytes without interpreting
+them as JSON and without applying any newline or encoding conversion. This is
+useful when the payload already exists as bytes (for example an uploaded file)
+and converting it to JSON and base64 first is undesirable.
+
+Passing the `b64: false` header parameter signs the payload bytes as-is
+([RFC 7797](https://datatracker.ietf.org/doc/html/rfc7797)); the `crit` header
+is automatically extended with `b64`. The detached form omits the payload from
+the compact serialization, so the payload is provided separately on
+verification:
+
+```ruby
+file_bytes = File.binread('upload.bin')
+
+jws = JWT::JWS.sign(file_bytes, 'secret', 'HS256', { b64: false }, detached: true)
+jws # => "eyJiNjQiOmZhbHNlLCJjcml0IjpbImI2NCJdLCJhbGciOiJIUzI1NiJ9..45O1sF8a..."
+
+# The exact same bytes must be provided for verification; changing a single
+# byte makes the verification fail.
+JWT::JWS.verify(jws, 'secret', 'HS256', payload: file_bytes) # => file_bytes
+```
+
+Notes:
+
+- A detached payload that is not provided (`payload:` omitted) is an error,
+  while an explicitly empty payload (`payload: ''`) is valid.
+- An unencoded payload embedded in the compact serialization must not contain
+  a period (`.`) — use the detached form for arbitrary binary content.
+- The JWT claims API (`JWT.encode` / `JWT.decode`) only accepts normal JWTs
+  and rejects tokens with `b64: false`.
+
 ## Claims
 
 JSON Web Token defines some reserved claim names and defines how they should be
