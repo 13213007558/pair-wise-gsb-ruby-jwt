@@ -78,4 +78,20 @@ module JWT
 
   # Raised when a JWK uses a key type (kty) that this library does not support.
   class UnsupportedKeyType < JWKError; end
+
+  # Base class for errors raised while processing Selective Disclosure JWTs
+  # (RFC 9901 SD-JWT).
+  class SDJWTError < DecodeError; end
+
+  # Raised when an SD-JWT / Disclosure / Key Binding JWT is malformed.
+  class SDJWTFormatError < SDJWTError; end
+
+  # Raised when an SD-JWT verification fails, for example because of an
+  # unreferenced disclosure, a duplicate digest, a claim that would overwrite an
+  # existing claim or an illegal nested disclosure.
+  class SDJWTVerificationError < SDJWTError; end
+
+  # Raised when an SD-JWT is issued with claims or claim paths that cannot be
+  # made selectively disclosable.
+  class SDJWTInvalidPayload < SDJWTError; end
 end

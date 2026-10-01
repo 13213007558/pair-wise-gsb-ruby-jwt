@@ -758,6 +758,92 @@ jwk_hash = jwk.export
 thumbprint_as_the_kid = jwk_hash[:kid]
 ```
 
+## Selective Disclosure for JWTs (SD-JWT, RFC 9901)
+
+[RFC 9901](https://www.rfc-editor.org/rfc/rfc9901) SD-JWT lets an issuer put the hashes of claims into the signed JWT and hand the actual claim values to the holder as separate **disclosures**. The holder then presents only the disclosures it wants the verifier to see. Signing and signature verification reuse the existing algorithms and keys (HMAC, RSA, ECDSA, EdDSA, PS and `JWT::JWK`); no credential network protocol is implemented.
+
+### Issuing
+
+Claims named in `disclosable` (dot paths for object members, brackets for array indexes) become selectively disclosable. Nested object members and array elements are supported, and a whole disclosable object may itself contain further disclosures.
+
+```ruby
+issuer_key = OpenSSL::PKey::EC.generate('prime256v1')
+holder_key = OpenSSL::PKey::EC.generate('prime256v1')
+holder_jwk = JWT::JWK.create_from(holder_key).export
+
+sd_jwt = JWT::SDJWT.issue(
+  claims: {
+    name: 'Alice Chen',
+    age: 29,
+    address: { street: '12 Maple Street', locality: 'Berlin', country: 'DE' },
+    nationalities: ['CN', 'DE']
+  },
+  disclosable: [
+    'name', 'age',
+    'address.street', 'address.locality', 'address.country',
+    'nationalities[0]', 'nationalities[1]'
+  ],
+  key: issuer_key,
+  algorithm: 'ES256',
+  holder_jwk: holder_jwk # optional, enables Key Binding JWTs
+)
+
+sd_jwt.to_s # => "<issuer JWT>~<disclosure 1>~...~"
+```
+
+Salts are random by default. For reproducible output (examples, test fixtures) a callable can be supplied with `salt_provider: -> { 'fixed-salt' }`.
+
+### Presenting disclosures
+
+The holder selects the claims to release and may add a Key Binding JWT:
+
+```ruby
+presentation = JWT::SDJWT.present(sd_jwt, ['name', 'age'])
+# or nested members / array elements:
+presentation = JWT::SDJWT.present(sd_jwt, ['address.street', 'nationalities[1]'])
+
+presentation = JWT::SDJWT.bind(
+  presentation,
+  audience: 'https://verifier.example',
+  nonce: 'verifier-provided-nonce',
+  key: holder_key
+)
+```
+
+### Verifying
+
+`verify` checks the issuer JWT signature, validates the disclosures against the digests and returns only the claims that were actually disclosed. It rejects duplicate digests, disclosures that are not referenced, disclosures that would overwrite a plain claim and illegal nesting (`_sd` inside arrays, `...` inside objects, `_sd_alg` below the root). When a Key Binding JWT is required (`audience`/`nonce` given) or present, its audience, nonce, `iat` and `sd_hash` are checked and its signature is verified with the public key from the issuer-signed `cnf.jwk` claim.
+
+```ruby
+result = JWT::SDJWT.verify(
+  presentation,
+  key: issuer_key.public_key,
+  algorithm: 'ES256',
+  claims: false,            # standard JWT claims such as :exp are verified otherwise
+  audience: 'https://verifier.example',
+  nonce: 'verifier-provided-nonce'
+)
+
+result.claims       # => {"name" => "Alice Chen", "age" => 29, ...}
+result.header       # issuer JWT header
+result.disclosures  # the disclosures that were presented
+result.key_binding  # the Key Binding JWT payload, if present
+```
+
+A presentation that smuggles in an unrelated disclosure is rejected because the disclosure is not referenced by any digest in the issuer signed JWT:
+
+```ruby
+stranger = JWT::SDJWT::Disclosure.new(salt: 'x', claim_name: 'is_admin', value: true)
+tampered = JWT::SDJWT::CompoundSdJwt.new(
+  issuer_jwt: presentation.issuer_jwt,
+  disclosures: presentation.disclosures + [stranger]
+)
+JWT::SDJWT.verify(tampered, key: issuer_key.public_key, algorithm: 'ES256')
+# raises JWT::SDJWTVerificationError: SD-JWT contains disclosures that are not referenced
+```
+
+A runnable, deterministic example (fixed salts, locally generated keys, two disclosure sets and the rejected unrelated disclosure) lives in [`examples/sd_jwt_credential.rb`](examples/sd_jwt_credential.rb).
+
 ## Development and testing
 
 The tests are written with rspec. [Appraisal](https://github.com/thoughtbot/appraisal) is used to ensure compatibility with 3rd party dependencies providing cryptographic features.
