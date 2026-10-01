@@ -24,6 +24,21 @@ module JWT
       @payload = payload
     end
 
+    # Builds a Token from already encoded JWS segments.
+    #
+    # @param encoded_header [String] the Base64url encoded header.
+    # @param encoded_payload [String] the Base64url encoded payload.
+    # @param signature [String] the raw signature bytes.
+    # @return [Token]
+    # @api private
+    def self.from_encoded_segments(encoded_header:, encoded_payload:, signature:)
+      allocate.tap do |token|
+        token.instance_variable_set(:@encoded_header, encoded_header)
+        token.instance_variable_set(:@encoded_payload, encoded_payload)
+        token.instance_variable_set(:@signature, signature)
+      end
+    end
+
     # Returns the decoded signature of the JWT token.
     #
     # @return [String] the decoded signature of the JWT token.
@@ -99,6 +114,52 @@ module JWT
         header.merge!(signer.jwa.header) { |_key, old, _new| old }
         @signature = signer.sign(data: signing_input)
       end
+
+      nil
+    end
+
+    # Prepares a two-phase signing request for an external signer (e.g. an
+    # offline HSM). The private key is not needed here; the returned
+    # {SigningRequest} is serializable and fixes the algorithm, header, payload
+    # and the exact bytes to sign.
+    #
+    # @param algorithm [String, JWT::JWA::SigningAlgorithm] the algorithm to sign with.
+    # @return [SigningRequest] the serializable signing request.
+    # @raise [JWT::EncodeError] if the token is already signed or the algorithm does not support external signing.
+    #
+    # @example
+    #   token   = JWT::Token.new(payload: {pay: 'load'})
+    #   request = token.prepare_signing(algorithm: 'PS256')
+    #   # ... external system signs request.signing_input ...
+    #   token.finalize_signing!(request, signature: sig, public_key: pubkey)
+    def prepare_signing(algorithm:)
+      raise ::JWT::EncodeError, 'Token already signed' if @signature
+
+      verify_claims!(:numeric)
+
+      jwa = SigningRequest.resolve_external_algorithm(algorithm)
+      header.merge!(jwa.header) { |_key, old, _new| old }
+
+      SigningRequest.new(algorithm: jwa.alg, encoded_header: encoded_header, encoded_payload: encoded_payload)
+    end
+
+    # Finalizes a two-phase signing by verifying the externally produced
+    # signature against the provided public key and attaching it to the token.
+    #
+    # @param request [SigningRequest] the request previously prepared with {#prepare_signing}.
+    # @param signature [String] the raw or Base64 encoded signature returned by the signer.
+    # @param public_key [OpenSSL::PKey::RSA, OpenSSL::PKey::EC, JWT::JWK::KeyBase] the key to verify with.
+    # @return [void]
+    # @raise [JWT::EncodeError] if the token is already signed.
+    # @raise [JWT::VerificationError] if the signature, algorithm or request does not match.
+    def finalize_signing!(request, signature:, public_key:)
+      raise ::JWT::EncodeError, 'Token already signed' if @signature
+
+      unless request.is_a?(SigningRequest) && request.signing_input == signing_input
+        raise ::JWT::VerificationError, 'The signing request does not match the token'
+      end
+
+      @signature = request.verify_signature(signature, public_key)
 
       nil
     end

@@ -226,6 +226,66 @@ token.jwt
 # => "eyJraWQiOiJobWFjIiwiYWxnIjoiSFMyNTYifQ.eyJleHAiOjE3NTAwMDU0NzksImp0aSI6IjEyMzQiLCJzdWIiOiJteS1zdWJqZWN0In0.NRLcK6fYr3IdNfmncJePMWLQ34M4n14EgqSYrQIjL9w"
 ```
 
+### Two-phase signing with an external signer
+
+When the private key is not available to the application (for example when it
+lives in an offline HSM behind an approval workflow), signing cannot happen in
+a single synchronous call. `JWT::SigningRequest` provides a prepare/finalize
+flow:
+
+1. **Prepare** a serializable request fixing the algorithm, header, payload and
+   the exact bytes to sign.
+2. Hand the JSON request to the external system, which signs it out of band.
+3. **Finalize** by passing the returned signature and a public key. The
+   signature is verified against the public key before the token is assembled,
+   and results produced with a wrong algorithm or over a different request are
+   rejected.
+
+Only asymmetric algorithms (`RS256/384/512`, `PS256/384/512` and
+`ES256/256K/384/512`) are supported since the signing key is expected to remain
+external.
+
+```ruby
+# Phase 1: prepare the signing request
+request = JWT::SigningRequest.prepare(
+  payload: { data: 'needs approval' },
+  algorithm: 'PS256',
+  headers: { kid: 'hsm-key-1' }
+)
+
+request_json = request.to_json
+# => {"alg":"PS256","protected":"eyJ...","payload":"eyJ...","signing_input":"eyJ....eyJ..."}
+```
+
+```ruby
+# Phase 2 (possibly in another process or after approval):
+# verify the returned signature with a public key and build the token
+token = JWT::SigningRequest.finalize(
+  request_json,
+  signature: signature_bytes_from_hsm,
+  public_key: public_key
+)
+
+token.jwt # => the complete, signed JWT
+```
+
+The returned signature may use the common wire encodings of external systems:
+raw bytes, standard Base64 or Base64url. For ECDSA algorithms both the DER
+encoded `(r, s)` structure returned by most HSMs and the fixed length raw
+`R || S` bytes used by JOSE are accepted and normalized automatically.
+
+The same flow is also available directly on `JWT::Token`:
+
+```ruby
+token = JWT::Token.new(payload: { data: 'needs approval' }, header: { kid: 'hsm-key-1' })
+request = token.prepare_signing(algorithm: 'ES256')
+
+# ... external signer returns the signature ...
+
+token.finalize_signing!(request, signature: external_signature, public_key: public_key)
+token.jwt
+```
+
 ### Verifying and decoding a token
 
 The `JWT::EncodedToken` can be used as a token object that allows verification of signatures and claims.

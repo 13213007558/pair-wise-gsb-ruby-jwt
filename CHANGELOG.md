@@ -6,7 +6,7 @@
 
 **Features:**
 
-- Your contribution here
+- Add `JWT::SigningRequest` with a prepare/finalize two-phase signing flow for external signers (e.g. offline HSMs). The serializable request fixes the algorithm, header, payload and signing input; the returned signature is verified with a public key when finalizing. Raw, Base64 and Base64url signatures are supported, as are both DER and raw `R || S` ECDSA encodings. `JWT::Token#prepare_signing` and `JWT::Token#finalize_signing!` provide the same flow on a token.
 
 **Fixes and enhancements:**
 
