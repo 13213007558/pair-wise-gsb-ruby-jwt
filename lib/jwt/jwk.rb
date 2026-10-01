@@ -17,9 +17,15 @@ module JWT
           end.new(key, params, options)
         end
 
-        mappings.fetch(key.class) do |klass|
-          raise JWT::JWKError, "Cannot create JWK from a #{klass.name}"
-        end.new(key, params, options)
+        jwk_class_from(key).new(key, params, options)
+      end
+
+      # Ed25519 keys are represented by the generic OpenSSL::PKey::PKey class
+      # and need to be distinguished by their OID instead of their class.
+      def jwk_class_from(key)
+        mappings[key.class] ||
+          (JWT::JWA::Eddsa.ed25519_key?(key) ? OKP : nil) ||
+          raise(JWT::JWKError, "Cannot create JWK from a #{key.class.name}")
       end
 
       def classes
@@ -51,5 +57,6 @@ end
 
 require_relative 'jwk/key_base'
 require_relative 'jwk/ec'
+require_relative 'jwk/okp'
 require_relative 'jwk/rsa'
 require_relative 'jwk/hmac'

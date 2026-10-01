@@ -3,6 +3,15 @@
 RSpec.describe JWT::JWK do
   let(:rsa_key) { test_pkey('rsa-2048-private.pem') }
   let(:ec_key) { test_pkey('ec256k-private.pem') }
+  let(:okp_private_params) do
+    {
+      kty: 'OKP',
+      crv: 'Ed25519',
+      d: 'nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A',
+      x: '11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo'
+    }
+  end
+  let(:okp_key) { OpenSSL::PKey.new_raw_private_key('ED25519', JWT::Base64.url_decode(okp_private_params[:d])) }
 
   describe '.import' do
     let(:keypair) { rsa_key.public_key }
@@ -71,6 +80,24 @@ RSpec.describe JWT::JWK do
     context 'when EC key is given' do
       let(:keypair) { ec_key }
       it { is_expected.to be_a(JWT::JWK::EC) }
+    end
+
+    context 'when an OpenSSL Ed25519 key is given' do
+      let(:keypair) { okp_key }
+      it { is_expected.to be_a(JWT::JWK::OKP) }
+    end
+
+    context 'when an OpenSSL key with an unsupported OID is given' do
+      let(:keypair) { OpenSSL::PKey.generate_key('X25519') }
+
+      it 'raises an error' do
+        expect { subject }.to raise_error(JWT::JWKError, 'Cannot create JWK from a OpenSSL::PKey::PKey')
+      end
+    end
+
+    context 'when an OKP JWK hash is given' do
+      let(:keypair) { okp_private_params }
+      it { is_expected.to be_a(JWT::JWK::OKP) }
     end
 
     context 'when kid is given' do

@@ -6,7 +6,7 @@
 
 **Features:**
 
-- Your contribution here
+- Support `EdDSA` (Ed25519) signing and verification as well as `kty=OKP` JWK import/export (RFC 8037) using OpenSSL directly, no additional gem is required
 
 **Fixes and enhancements:**
 

@@ -43,9 +43,7 @@ require 'jwt'
 
 ## Algorithms and Usage
 
-The jwt gem natively supports the NONE, HMAC, RSASSA, ECDSA and RSASSA-PSS algorithms via the openssl library. The gem can be extended with additional or alternative implementations of the algorithms via extensions.
-
-Additionally the EdDSA algorithm is supported via a the [jwt-eddsa gem](https://rubygems.org/gems/jwt-eddsa).
+The jwt gem natively supports the NONE, HMAC, RSASSA, ECDSA, RSASSA-PSS and EdDSA (Ed25519) algorithms via the openssl library. The gem can be extended with additional or alternative implementations of the algorithms via extensions.
 
 For safe cryptographic signing, you need to specify the algorithm in the options hash whenever you call `JWT.decode` to ensure that an attacker [cannot bypass the algorithm verification step](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/). **It is strongly recommended that you hard code the algorithm, as you may leave yourself vulnerable by dynamically picking the algorithm**
 
@@ -131,7 +129,24 @@ decoded_token = JWT.decode(token, ecdsa_key, true, { algorithm: 'ES256' })
 
 ### **EdDSA**
 
-Since version 3.0, the EdDSA algorithm has been moved to the [jwt-eddsa gem](https://rubygems.org/gems/jwt-eddsa).
+- EdDSA - Edwards-curve Digital Signature Algorithm using the Ed25519 curve as described in [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037)
+
+Signing and verification are performed with the OpenSSL library, so no additional gems are required.
+
+```ruby
+payload  = { data: 'test' }
+edd_key  = OpenSSL::PKey.generate_key('ED25519')
+
+token = JWT.encode(payload, edd_key, 'EdDSA')
+
+decoded_token = JWT.decode(token, edd_key, true, { algorithm: 'EdDSA' })
+# => [
+#      {"data"=>"test"}, # payload
+#      {"alg"=>"EdDSA"} # header
+#    ]
+```
+
+Ed25519 keys can also be imported and exported as Octet Key Pair (OKP) JWKs, see the [JSON Web Key (JWK)](#json-web-key-jwk) section.
 
 ### **RSASSA-PSS**
 
@@ -647,7 +662,7 @@ end
 
 ## JSON Web Key (JWK)
 
-JWK is a JSON structure representing a cryptographic key. This gem currently supports RSA, EC, OKP and HMAC keys. OKP support requires [RbNaCl](https://github.com/RubyCrypto/rbnacl) and currently only supports the Ed25519 curve.
+JWK is a JSON structure representing a cryptographic key. This gem currently supports RSA, EC, OKP and HMAC keys. OKP keys are handled through the OpenSSL library and support the Ed25519 curve as defined in [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037).
 
 To encode a JWT using your JWK:
 

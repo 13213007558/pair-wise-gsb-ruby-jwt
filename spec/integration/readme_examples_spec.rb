@@ -51,6 +51,17 @@ RSpec.describe 'README.md code test' do
 
         expect(decoded_token).to eq([{ 'data' => 'test' }, { 'alg' => 'PS256' }])
       end
+
+      it 'EdDSA with OKP JWK' do
+        private_jwk = JWT::JWK.new(OpenSSL::PKey.generate_key('ED25519'))
+        expect(private_jwk).to be_a(JWT::JWK::OKP)
+
+        token = JWT.encode(payload, private_jwk, 'EdDSA', kid: private_jwk.kid)
+
+        public_jwks = { keys: [private_jwk.export] }
+        decoded_token = JWT.decode(token, nil, true, algorithms: ['EdDSA'], jwks: public_jwks)
+        expect(decoded_token).to eq([{ 'data' => 'test' }, { 'alg' => 'EdDSA', 'kid' => private_jwk.kid }])
+      end
     end
   end
 

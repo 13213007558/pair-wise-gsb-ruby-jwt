@@ -4,6 +4,7 @@ require 'openssl'
 
 require_relative 'jwa/signing_algorithm'
 require_relative 'jwa/ecdsa'
+require_relative 'jwa/eddsa'
 require_relative 'jwa/hmac'
 require_relative 'jwa/none'
 require_relative 'jwa/ps'
@@ -64,7 +65,8 @@ module JWT
 
         return if Array(jwks).all? do |jwk|
           algorithms.any? do |alg|
-            jwk.jwa.valid_alg?(alg)
+            alg_name = alg.is_a?(SigningAlgorithm) ? alg.alg : alg
+            jwk.jwa.valid_alg?(alg_name)
           end
         end
 
