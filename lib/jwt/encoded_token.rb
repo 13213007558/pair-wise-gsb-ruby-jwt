@@ -33,7 +33,30 @@ module JWT
       @signature_verified = false
       @claims_verified    = false
 
-      @encoded_header, @encoded_payload, @encoded_signature = jwt.split('.')
+      @segments = jwt.split('.')
+      @encoded_header  = @segments[0]
+      @encoded_payload = @segments[1] if segment_count >= 2
+      @encoded_signature = @segments[2] if segment_count >= 3
+      @detached_form = @segments.length >= 2 && @segments[1] == ''
+      @external_payload_provided = false
+    end
+
+    # Tells whether the token is a detached payload JWS (RFC 7515 appendix F),
+    # i.e. the compact serialization has an empty payload segment.
+    #
+    # The result reflects the original token form and does not change when the
+    # external payload is supplied through {#encoded_payload=}.
+    #
+    # @return [Boolean] true when the token has the detached payload form.
+    def detached?
+      @detached_form
+    end
+
+    # Tells whether the payload is transported unencoded as described in RFC 7797.
+    #
+    # @return [Boolean] true when the 'b64' header is explicitly false.
+    def unencoded?
+      header['b64'] == false
     end
 
     # Returns the decoded signature of the JWT token.
@@ -82,21 +105,44 @@ module JWT
     # @return [String] the encoded payload.
     attr_reader :encoded_payload
 
-    # Sets the encoded payload of the JWT token.
+    # Sets the external payload carried separately from a detached payload JWS.
+    #
+    # The value is used verbatim as the signing input payload. For an RFC 7797
+    # unencoded token ('b64' header false) the value is the raw payload bytes,
+    # otherwise it is the base64url encoded payload of a regular JWT.
+    #
+    # Providing an empty String is a valid, distinct payload and must not be
+    # confused with not providing the external payload at all.
     #
     # Resets the verification state, requiring the token to be verified again.
     #
-    # @param encoded_payload [String] the encoded payload.
+    # @param encoded_payload [String] the external payload bytes.
+    # @raise [JWT::MalformedTokenError] if the value is not a String or contains
+    #   a '.' character while the token carries an unencoded payload.
     def encoded_payload=(encoded_payload)
+      unless encoded_payload.is_a?(String)
+        raise JWT::MalformedTokenError, 'The payload must be a String containing the original bytes'
+      end
+      if inline_unencoded_payload?(encoded_payload)
+        raise JWT::MalformedTokenError, "Invalid unencoded payload, '.' character is not allowed in the payload"
+      end
+
       @encoded_payload = encoded_payload
+      @external_payload_provided = true
       @decoded_payload = nil
       @signature_verified = @claims_verified = false
     end
 
     # Returns the signing input of the JWT token.
     #
+    # For an RFC 7797 unencoded payload the raw payload bytes are used instead
+    # of the base64url encoded representation.
+    #
     # @return [String] the signing input.
+    # @raise [JWT::MalformedTokenError] if the token is structurally invalid or
+    #   a detached payload is expected but has not been provided.
     def signing_input
+      validate_structure!
       [encoded_header, encoded_payload].join('.')
     end
 
@@ -150,6 +196,8 @@ module JWT
     def valid_signature?(algorithm: nil, key: nil, key_finder: nil)
       raise ArgumentError, 'Provide either key or key_finder, not both or neither' if key.nil? == key_finder.nil?
 
+      validate_structure!
+
       keys      = Array(key || key_finder.call(self))
       verifiers = JWA.create_verifiers(algorithms: algorithm, keys: keys, preferred_algorithm: header['alg'])
 
@@ -199,18 +247,64 @@ module JWT
     end
 
     def decode_payload
-      raise JWT::MalformedTokenError, 'Encoded payload is empty' if encoded_payload == ''
+      validate_structure!
 
-      if unencoded_payload?
-        verify_claims!(crit: ['b64'])
-        return parse(encoded_payload)
+      if unencoded?
+        # RFC 7797: the payload is not base64url decoded and may be arbitrary
+        # bytes, not even JSON. The original bytes supplied by the caller are
+        # returned verbatim.
+        raise JWT::MalformedTokenError, 'The payload is detached and must be provided separately' if detached_payload_missing?
+
+        return encoded_payload
       end
+
+      raise JWT::MalformedTokenError, 'Encoded payload is empty' if encoded_payload.nil? || encoded_payload == ''
 
       parse_and_decode(encoded_payload)
     end
 
-    def unencoded_payload?
-      header['b64'] == false
+    # Validates the compact serialization and the JWS headers relevant for
+    # RFC 7797. The header is not authenticated until the signature is verified,
+    # so a malformed structure must never reach the signature computation.
+    def validate_structure!
+      unless (2..3).cover?(segment_count)
+        raise JWT::MalformedTokenError, 'Not enough or too many segments'
+      end
+
+      validate_b64_header!
+    end
+
+    def validate_b64_header!
+      return unless header.is_a?(Hash)
+
+      b64 = header['b64']
+
+      return if b64.nil? || b64 == true
+      unless b64 == false
+        raise JWT::MalformedTokenError, "The 'b64' header must be a boolean value"
+      end
+
+      unless header['crit'].is_a?(Array) && header['crit'].include?('b64')
+        raise JWT::MalformedTokenError, "The 'b64' critical header must be declared in the crit header"
+      end
+
+      # RFC 7797 section 3: '.' is not allowed in an unencoded compact payload.
+      raise JWT::MalformedTokenError, "Invalid unencoded payload, '.' character is not allowed in the payload" if segment_count == 3 && inline_unencoded_payload?(encoded_payload)
+      raise JWT::MalformedTokenError, 'The payload is detached and must be provided separately' if detached_payload_missing?
+    end
+
+    def detached_payload_missing?
+      detached? && !@external_payload_provided
+    end
+
+    # The compact serialization cannot carry an unencoded payload with '.' in
+    # it. A payload containing '.' is only acceptable when carried detached.
+    def inline_unencoded_payload?(payload)
+      unencoded? && !detached? && payload.include?('.')
+    end
+
+    def segment_count
+      @segments.length
     end
 
     def parse_and_decode(segment)

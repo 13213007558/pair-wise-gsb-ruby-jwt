@@ -22,9 +22,20 @@ module JWT
     #
     # @return [String] the encoded JWT token.
     def segments
+      reject_unencoded_payload!
       @token.verify_claims!(:numeric)
       @token.sign!(algorithm: @algorithm, key: @key)
       @token.jwt
+    end
+
+    private
+
+    # RFC 7797 unencoded payloads (b64=false) are JWS only and are not produced
+    # by the JWT claims API. The low level JWT::Token interface must be used.
+    def reject_unencoded_payload!
+      return unless @token.header['b64'] == false
+
+      raise ::JWT::EncodeError, "RFC 7797 unencoded payloads ('b64' => false) are not supported by JWT.encode, use JWT::Token"
     end
   end
 end

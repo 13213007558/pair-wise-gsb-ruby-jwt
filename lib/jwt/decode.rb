@@ -34,6 +34,7 @@ module JWT
     # @return [Array<Hash>] an array containing the decoded payload and header.
     def decode_segments
       validate_segment_count!
+      reject_unencoded_payload!
       if @verify
         verify_algo
         set_key
@@ -47,6 +48,16 @@ module JWT
     private
 
     attr_reader :token
+
+    # RFC 7797 unencoded payloads (b64=false), in particular detached JWS, are
+    # not accepted by the JWT claims API because the claims are carried outside
+    # of the compact serialization. Use the low level JWT::EncodedToken
+    # interface and provide the original payload bytes.
+    def reject_unencoded_payload!
+      return unless token.header.is_a?(Hash) && token.header['b64'] == false
+
+      raise JWT::DecodeError, "RFC 7797 unencoded payloads ('b64' => false) are not supported by JWT.decode, use JWT::EncodedToken"
+    end
 
     def verify_signature
       return if none_algorithm?

@@ -6,7 +6,7 @@
 
 **Features:**
 
-- Your contribution here
+- Support for [RFC 7797](https://www.rfc-editor.org/rfc/rfc7797) unencoded payloads (`b64=false`) on the `JWT::Token` and `JWT::EncodedToken` JWS interfaces, including detached payloads with arbitrary bytes, automatic `crit: ['b64']` handling and strict compact serialization validation. The `JWT.encode`/`JWT.decode` claims APIs keep accepting only regular JWTs.
 
 **Fixes and enhancements:**
 

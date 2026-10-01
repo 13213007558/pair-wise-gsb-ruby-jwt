@@ -325,6 +325,35 @@ encoded_token.verify_signature!(algorithm: 'HS256', key: "secret")
 encoded_token.payload # => {"pay"=>"load"}
 ```
 
+### Unencoded payload (RFC 7797, `b64=false`)
+
+[RFC 7797](https://www.rfc-editor.org/rfc/rfc7797) defines an option to sign arbitrary payload bytes without base64url encoding them. This is supported on the low level JWS interfaces (`JWT::Token` and `JWT::EncodedToken`) by setting the `b64` header to `false`. The `b64` header is automatically added to the `crit` header.
+
+```ruby
+# The bytes are used verbatim for signing, no JSON, base64 or newline handling.
+payload = "raw\x00bytes\xFF"
+
+token = JWT::Token.new(payload: payload, header: { b64: false })
+token.sign!(algorithm: 'HS256', key: 'secret')
+token.detach_payload!
+
+token.jwt             # => "eyJhbGciOiJIUzI1NiIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..<signature>"
+token.encoded_payload # => "raw\x00bytes\xFF"
+```
+
+Detached payloads are the recommended representation, because the compact serialization can not carry unencoded bytes containing the `.` separator. An inline unencoded payload must not contain a `.` character.
+
+The verifier must be given the exact original bytes. Changing a single byte makes the signature verification fail. Providing an empty string (`""`) is a valid payload and is distinct from not providing the payload at all.
+
+```ruby
+encoded_token = JWT::EncodedToken.new(token.jwt)
+encoded_token.encoded_payload = payload # the original bytes, not base64 encoded
+encoded_token.verify_signature!(algorithm: 'HS256', key: 'secret')
+encoded_token.unverified_payload # => "raw\x00bytes\xFF"
+```
+
+The high level `JWT.encode` and `JWT.decode` claims APIs only accept regular JWTs and raise when a token carries the `b64=false` header.
+
 ## Claims
 
 JSON Web Token defines some reserved claim names and defines how they should be

@@ -36,8 +36,8 @@ RSpec.describe JWT::EncodedToken do
       let(:encoded_token) { 'eyJhbGciOiJIUzI1NiIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..signature' }
       before { token.encoded_payload = '{"foo": "bar"}' }
 
-      it 'handles the payload encoding' do
-        expect(token.unverified_payload).to eq({ 'foo' => 'bar' })
+      it 'returns the raw payload bytes without decoding or parsing them' do
+        expect(token.unverified_payload).to eq('{"foo": "bar"}')
       end
     end
 
@@ -45,7 +45,7 @@ RSpec.describe JWT::EncodedToken do
       let(:encoded_token) { '' }
 
       it 'raises decode error' do
-        expect { token.unverified_payload }.to raise_error(JWT::MalformedTokenError, 'Invalid segment encoding')
+        expect { token.unverified_payload }.to raise_error(JWT::MalformedTokenError, 'Not enough or too many segments')
       end
     end
   end
