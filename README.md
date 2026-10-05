@@ -645,6 +645,35 @@ rescue JWT::TokenError
 end
 ```
 
+## OpenID Connect ID Token verification
+
+Verifying the signature and the registered claims of an ID Token is not enough for the implicit and hybrid flows: the token also has to correspond to the authorization response it arrived with. The `JWT::OIDC::Verifier` verifies the `nonce`, the authorized party (`azp`) and the `c_hash`/`at_hash` claims that bind the ID Token to the authorization code and access token of the response.
+
+The verifier is configured with a response type scenario that decides whether a missing claim is allowed or an error:
+
+- `:code` (Authorization Code Flow): the nonce is only verified when one was sent with the authentication request. The `c_hash` and `at_hash` claims are optional and verified when present.
+- `:implicit` (Implicit Flow): the nonce is required. The `at_hash` claim is required when the response contains an access token.
+- `:hybrid` (Hybrid Flow): the nonce is required. The `c_hash` claim is required when the response contains an authorization code and the `at_hash` claim is required when the response contains an access token.
+
+In all scenarios the `azp` claim is required to be present and equal to the `client_id` when the `aud` claim contains multiple audiences. The hash algorithm for `c_hash`/`at_hash` is derived from the verified signature algorithm of the ID Token; an unknown algorithm raises `JWT::OIDC::UnsupportedAlgorithmError` instead of silently falling back to SHA-256.
+
+```ruby
+# Authorization response of a hybrid flow, e.g. params from the redirect
+response = { 'id_token' => 'eyJhbGciOi...', 'code' => 'SplxlOBeZQQYbYS6WxSbIA' }
+
+id_token = JWT::EncodedToken.new(response.fetch('id_token'))
+id_token.verify_signature!(algorithm: 'RS256', key: jwks)
+id_token.verify_claims!(:exp, :iat, aud: 'my-client', iss: 'https://issuer.example')
+
+JWT::OIDC::Verifier.new(
+  response_type: :hybrid,
+  client_id: 'my-client',
+  nonce: session.delete(:nonce), # required for :implicit and :hybrid
+  code: response['code'],
+  access_token: response['access_token']
+).verify!(id_token)
+```
+
 ## JSON Web Key (JWK)
 
 JWK is a JSON structure representing a cryptographic key. This gem currently supports RSA, EC, OKP and HMAC keys. OKP support requires [RbNaCl](https://github.com/RubyCrypto/rbnacl) and currently only supports the Ed25519 curve.
