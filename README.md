@@ -51,6 +51,38 @@ For safe cryptographic signing, you need to specify the algorithm in the options
 
 See [JSON Web Algorithms (JWA) 3.1. "alg" (Algorithm) Header Parameter Values for JWS](https://tools.ietf.org/html/rfc7518#section-3.1)
 
+### **JSON Web Encryption (JWE)**
+
+Compact JWE decryption supports `dir` and `RSA-OAEP-256` key management with `A128GCM` and `A256GCM` content encryption. Both the key management algorithm (`alg`) and content encryption algorithm (`enc`) must be explicitly allowed.
+
+```ruby
+jwe = 'eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4R0NNIn0..<iv>.<ciphertext>.<tag>'
+
+token = JWT::JWE::CompactToken.decrypt(
+  jwe,
+  key,
+  ['dir'],       # allowed JWE alg values
+  ['A128GCM']    # allowed JWE enc values
+)
+
+token.plaintext
+```
+
+When the encrypted payload is a nested JWS, decrypt it first and then verify the JWS using an independent signature policy. The outer `alg`, `enc`, and `cty` headers never select or widen the inner signature policy.
+
+```ruby
+payload, inner_header, outer_header = JWT.decode(
+  nested_jwe,
+  encryption_key,
+  true,
+  jwe_algorithms: ['RSA-OAEP-256'],
+  jwe_encryption_algorithms: ['A256GCM'],
+  nested_signature: { algorithms: ['RS256'], key: signature_public_key }
+)
+```
+
+Directly encrypted JSON claims can also be decoded with the same explicit JWE allowlists, but plaintext remains unavailable until AES-GCM authentication succeeds.
+
 ### **NONE**
 
 - none - unsigned token
