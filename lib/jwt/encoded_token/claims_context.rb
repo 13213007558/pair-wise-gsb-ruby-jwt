@@ -9,7 +9,7 @@ module JWT
     class ClaimsContext
       extend Forwardable
 
-      def_delegators :@token, :header, :unverified_payload
+      def_delegators :@token, :header, :unverified_payload, :verified_algorithm
 
       def initialize(token)
         @token = token

@@ -20,7 +20,7 @@ module JWT
 
     # Returns the original token provided to the class.
     # @return [String] The JWT token.
-    attr_reader :jwt
+    attr_reader :jwt, :verified_algorithm
 
     # Initializes a new EncodedToken instance.
     #
@@ -34,6 +34,7 @@ module JWT
       @claims_verified    = false
 
       @encoded_header, @encoded_payload, @encoded_signature = jwt.split('.')
+      @verified_algorithm = nil
     end
 
     # Returns the decoded signature of the JWT token.
@@ -91,6 +92,7 @@ module JWT
       @encoded_payload = encoded_payload
       @decoded_payload = nil
       @signature_verified = @claims_verified = false
+      @verified_algorithm = nil
     end
 
     # Returns the signing input of the JWT token.
@@ -155,10 +157,12 @@ module JWT
 
       raise JWT::VerificationError, 'No algorithm provided' if verifiers.empty?
 
-      valid = verifiers.any? do |jwa|
-        jwa.verify(data: signing_input, signature: signature)
+      @verified_algorithm = nil
+      matching_verifier = verifiers.find do |verifier|
+        verifier.verify(data: signing_input, signature: signature)
       end
-      valid.tap { |verified| @signature_verified = verified }
+      @verified_algorithm = matching_verifier&.jwa&.alg
+      @signature_verified = !matching_verifier.nil?
     end
 
     # Verifies the claims of the token.

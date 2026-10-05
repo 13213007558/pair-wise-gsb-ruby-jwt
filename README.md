@@ -325,6 +325,31 @@ encoded_token.verify_signature!(algorithm: 'HS256', key: "secret")
 encoded_token.payload # => {"pay"=>"load"}
 ```
 
+## OpenID Connect
+
+The OIDC profile verifies claims that bind a signed ID token to a particular authorization response: `nonce`, `azp`, `c_hash`, and `at_hash`. Hash claims use the digest corresponding to the JWS algorithm that verified the token signature; an unsupported or unavailable JWS algorithm is rejected rather than defaulting to SHA-256.
+
+Pass the `:code`, `:implicit`, or `:hybrid` response flow so required and forbidden claims match that flow.
+
+```ruby
+payload, header = JWT.decode(
+  id_token,
+  public_key,
+  true,
+  algorithm: 'RS256',
+  verify_expiration: false,
+  oidc: {
+    flow: :hybrid,
+    client_id: 'client-id',
+    nonce: 'stored-nonce',
+    code: authorization_code,
+    access_token: access_token
+  }
+)
+```
+
+The `code` flow accepts optional `c_hash` and `at_hash` values. The `implicit` flow requires `nonce` and `at_hash` when the response has an access token and rejects `c_hash`. The `hybrid` flow requires `nonce` and `c_hash`, and requires `at_hash` only when that hybrid response returned an access token. When `aud` contains multiple audiences, `azp` must identify the authorized client.
+
 ## Claims
 
 JSON Web Token defines some reserved claim names and defines how they should be

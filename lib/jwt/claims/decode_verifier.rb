@@ -5,7 +5,7 @@ module JWT
     # Context class to contain the data passed to individual claim validators
     #
     # @api private
-    VerificationContext = Struct.new(:payload, keyword_init: true)
+    VerificationContext = Struct.new(:payload, :verified_algorithm, keyword_init: true)
 
     # Verifiers to support the ::JWT.decode method
     #
@@ -19,18 +19,20 @@ module JWT
         verify_jti: ->(options) { Claims::JwtId.new(validator: options[:verify_jti]) },
         verify_aud: ->(options) { options[:aud] && Claims::Audience.new(expected_audience: options[:aud]) },
         verify_sub: ->(options) { options[:sub] && Claims::Subject.new(expected_subject: options[:sub]) },
-        required_claims: ->(options) { Claims::Required.new(required_claims: options[:required_claims]) }
+        required_claims: ->(options) { Claims::Required.new(required_claims: options[:required_claims]) },
+        oidc: ->(options) { ::JWT::OIDC::Profile.build(options[:oidc]) }
       }.freeze
 
       private_constant(:VERIFIERS)
 
       class << self
         # @api private
-        def verify!(payload, options)
+        def verify!(payload, options, verified_algorithm: nil)
+          context = VerificationContext.new(payload: payload, verified_algorithm: verified_algorithm)
           VERIFIERS.each do |key, verifier_builder|
             next unless options[key] || options[key.to_s]
 
-            verifier_builder&.call(options)&.verify!(context: VerificationContext.new(payload: payload))
+            verifier_builder&.call(options)&.verify!(context: context)
           end
           nil
         end

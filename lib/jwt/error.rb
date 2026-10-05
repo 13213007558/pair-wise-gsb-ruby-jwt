@@ -67,6 +67,18 @@ module JWT
   # The InvalidJtiError class is raised when the JWT ID (jti) claim is invalid.
   class InvalidJtiError < ClaimValidationError; end
 
+  # The InvalidNonceError class is raised when the OIDC nonce claim is invalid.
+  class InvalidNonceError < ClaimValidationError; end
+
+  # The InvalidAzpError class is raised when the OIDC authorized party claim is invalid.
+  class InvalidAzpError < ClaimValidationError; end
+
+  # The InvalidCHashError class is raised when the OIDC authorization code hash is invalid.
+  class InvalidCHashError < ClaimValidationError; end
+
+  # The InvalidAtHashError class is raised when the OIDC access token hash is invalid.
+  class InvalidAtHashError < ClaimValidationError; end
+
   # The InvalidPayload class is raised when the JWT payload is invalid.
   class InvalidPayload < ClaimValidationError; end
 

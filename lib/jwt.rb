@@ -9,6 +9,7 @@ require 'jwt/encode'
 require 'jwt/error'
 require 'jwt/jwk'
 require 'jwt/claims'
+require 'jwt/oidc'
 require 'jwt/encoded_token'
 require 'jwt/token'
 

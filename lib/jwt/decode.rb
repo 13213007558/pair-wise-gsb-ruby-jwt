@@ -38,7 +38,7 @@ module JWT
         verify_algo
         set_key
         verify_signature
-        Claims::DecodeVerifier.verify!(token.unverified_payload, @options)
+        Claims::DecodeVerifier.verify!(token.unverified_payload, @options, verified_algorithm: token.verified_algorithm)
       end
 
       [token.unverified_payload, token.header]
