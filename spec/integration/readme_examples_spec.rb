@@ -54,6 +54,42 @@ RSpec.describe 'README.md code test' do
     end
   end
 
+  context 'jwe' do
+    let(:payload) { { sub: 'alice' } }
+
+    it 'encrypts and decrypts with dir' do
+      cek = SecureRandom.bytes(32)
+
+      token = JWT::JWE.encrypt(payload, cek, algorithm: 'dir', encryption: 'A256GCM')
+      decrypted_token = JWT::JWE.decrypt(token, cek, algorithms: ['dir'], encryptions: ['A256GCM'])
+
+      expect(decrypted_token).to eq([{ 'sub' => 'alice' }, { 'alg' => 'dir', 'enc' => 'A256GCM' }])
+    end
+
+    it 'encrypts and decrypts with RSA-OAEP-256' do
+      rsa_private = OpenSSL::PKey::RSA.generate(2048)
+      rsa_public = rsa_private.public_key
+
+      token = JWT::JWE.encrypt(payload, rsa_public, algorithm: 'RSA-OAEP-256', encryption: 'A128GCM')
+      decrypted_token = JWT::JWE.decrypt(token, rsa_private, algorithms: ['RSA-OAEP-256'], encryptions: ['A128GCM'])
+
+      expect(decrypted_token).to eq([{ 'sub' => 'alice' }, { 'alg' => 'RSA-OAEP-256', 'enc' => 'A128GCM' }])
+    end
+
+    it 'encrypts and decrypts a nested JWS' do
+      rsa_private = OpenSSL::PKey::RSA.generate(2048)
+      rsa_public = rsa_private.public_key
+
+      jws = JWT.encode(payload, 'secret', 'HS256')
+      token = JWT::JWE.encrypt(jws, rsa_public, algorithm: 'RSA-OAEP-256', encryption: 'A256GCM', headers: { cty: 'JWT' })
+      decrypted_token, = JWT::JWE.decrypt(token, rsa_private,
+                                          algorithms: ['RSA-OAEP-256'], encryptions: ['A256GCM'],
+                                          jws: { key: 'secret', algorithms: ['HS256'] })
+
+      expect(decrypted_token).to eq('sub' => 'alice')
+    end
+  end
+
   context 'claims' do
     let(:hmac_secret) { 'MyP4ssW0rD' }
 

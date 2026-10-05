@@ -6,6 +6,7 @@
 
 **Features:**
 
+- Add JWE compact serialization (JWT::JWE) with dir and RSA-OAEP-256 key management and A128GCM/A256GCM content encryption
 - Your contribution here
 
 **Fixes and enhancements:**

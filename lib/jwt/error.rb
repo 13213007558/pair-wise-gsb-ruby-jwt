@@ -78,4 +78,13 @@ module JWT
 
   # Raised when a JWK uses a key type (kty) that this library does not support.
   class UnsupportedKeyType < JWKError; end
+
+  # The JWEError class is the base class for all errors related to processing
+  # JSON Web Encryption (JWE) tokens.
+  class JWEError < TokenError; end
+
+  # The DecryptionError class is raised when a JWE token cannot be decrypted or
+  # its integrity cannot be verified. The message never contains key material
+  # or decrypted content.
+  class DecryptionError < JWEError; end
 end

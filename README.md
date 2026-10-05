@@ -209,6 +209,52 @@ decoded_token = JWT.decode(token, nil, true, { algorithm: 'none' })
 #     ]
 ```
 
+## JSON Web Encryption (JWE)
+
+The `JWT::JWE` module supports the JWE compact serialization ([RFC 7516](https://tools.ietf.org/html/rfc7516))
+with the `dir` and `RSA-OAEP-256` key management algorithms and the `A128GCM` and `A256GCM`
+content encryption algorithms.
+
+Decryption always requires the caller to explicitly allow the key management algorithms and
+content encryption algorithms. The `alg`, `enc` and `cty` values in the token header only
+select between the allowed algorithms and never widen the caller's policy. Plaintext claims
+are not exposed before the authentication tag has been verified.
+
+```ruby
+cek = SecureRandom.bytes(32) # 16 bytes for A128GCM
+
+token = JWT::JWE.encrypt({ sub: 'alice' }, cek, algorithm: 'dir', encryption: 'A256GCM')
+
+payload, header = JWT::JWE.decrypt(token, cek, algorithms: ['dir'], encryptions: ['A256GCM'])
+#  => [
+#       {"sub"=>"alice"}, # payload
+#       {"alg"=>"dir", "enc"=>"A256GCM"} # protected header
+#     ]
+```
+
+With RSA-OAEP-256 the CEK is generated randomly and wrapped with the recipient's public key:
+
+```ruby
+token = JWT::JWE.encrypt({ sub: 'alice' }, rsa_public, algorithm: 'RSA-OAEP-256', encryption: 'A128GCM')
+
+payload, header = JWT::JWE.decrypt(token, rsa_private, algorithms: ['RSA-OAEP-256'], encryptions: ['A128GCM'])
+```
+
+### Nested JWS
+
+A signed JWT can be encrypted as a nested token (`cty: "JWT"`). The nested token is
+decrypted first and its signature is then verified with an independent, explicit
+signature policy:
+
+```ruby
+jws = JWT.encode({ sub: 'alice' }, 'secret', 'HS256')
+token = JWT::JWE.encrypt(jws, rsa_public, algorithm: 'RSA-OAEP-256', encryption: 'A256GCM', headers: { cty: 'JWT' })
+
+payload, = JWT::JWE.decrypt(token, rsa_private,
+                            algorithms: ['RSA-OAEP-256'], encryptions: ['A256GCM'],
+                            jws: { key: 'secret', algorithms: ['HS256'] })
+```
+
 ## `JWT::Token` and `JWT::EncodedToken`
 
 The `JWT::Token` and `JWT::EncodedToken` classes can be used to manage your JWTs.
